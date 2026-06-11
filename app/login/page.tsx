@@ -1,31 +1,9 @@
-"use client";
-
-import { useState } from "react";
+import { signIn } from "@/auth";
 import { COLORS } from "@/lib/core/theme";
 
+// Server component: each provider button is a server-action form that kicks off
+// the OAuth flow via Auth.js. Keeps the amber-CRT terminal look, no client JS.
 export default function Login() {
-  const [pw, setPw] = useState("");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function submit() {
-    if (!pw || busy) return;
-    setBusy(true);
-    setErr("");
-    try {
-      const res = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password: pw }),
-      });
-      if (res.ok) window.location.href = "/";
-      else setErr("wrong password");
-    } catch {
-      setErr("could not reach server");
-    }
-    setBusy(false);
-  }
-
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 340 }}>
@@ -33,20 +11,31 @@ export default function Login() {
           <span style={{ color: COLORS.accent, fontSize: 18, letterSpacing: 1 }}>macros</span>
           <span className="cur" style={{ fontSize: 18 }}>▊</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: COLORS.inset, border: `1px solid ${COLORS.border}`, padding: "10px 12px" }}>
-          <span style={{ color: COLORS.accent }}>&gt;</span>
-          <input
-            className="tin"
-            type="password"
-            autoFocus
-            value={pw}
-            placeholder="password"
-            onChange={(e) => setPw(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submit()}
-          />
-          <button className="btn" onClick={submit} disabled={busy || !pw}>{busy ? "…" : "ENTER"}</button>
+        <div style={{ color: COLORS.dim, fontSize: 12, textAlign: "center", marginBottom: 14 }}>
+          // sign in to your log
         </div>
-        {err && <div style={{ color: COLORS.fat, fontSize: 12, marginTop: 10, textAlign: "center" }}>! {err}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <form
+            action={async () => {
+              "use server";
+              await signIn("github", { redirectTo: "/" });
+            }}
+          >
+            <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
+              &gt; SIGN IN WITH GITHUB
+            </button>
+          </form>
+          <form
+            action={async () => {
+              "use server";
+              await signIn("google", { redirectTo: "/" });
+            }}
+          >
+            <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
+              &gt; SIGN IN WITH GOOGLE
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

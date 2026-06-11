@@ -1,5 +1,4 @@
 import { neon } from "@neondatabase/serverless";
-import { DEFAULT_GOALS } from "@/lib/core/macros";
 
 // Neon Postgres over HTTP — purpose-built for serverless (Vercel) route handlers,
 // no connection pool to manage. Set DATABASE_URL to your Neon connection string.
@@ -10,11 +9,14 @@ export const sql = neon(url);
 
 let ready: Promise<void> | null = null;
 
+// Multi-user schema (keyed on the signed-in email). For an existing single-user
+// DB, run scripts/migrate-multiuser.mjs once — CREATE TABLE IF NOT EXISTS won't
+// alter tables that already exist. Goals are seeded lazily per user, not here.
 export function ensureSchema(): Promise<void> {
   if (!ready) {
     ready = (async () => {
       await sql`CREATE TABLE IF NOT EXISTS goals (
-        id INTEGER PRIMARY KEY CHECK (id = 1),
+        user_id TEXT PRIMARY KEY,
         calories INTEGER NOT NULL,
         protein INTEGER NOT NULL,
         carbs INTEGER NOT NULL,
@@ -22,6 +24,7 @@ export function ensureSchema(): Promise<void> {
       )`;
       await sql`CREATE TABLE IF NOT EXISTS entries (
         id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         date TEXT NOT NULL,
         food TEXT NOT NULL,
         serving TEXT NOT NULL DEFAULT '',
@@ -31,12 +34,7 @@ export function ensureSchema(): Promise<void> {
         fat INTEGER NOT NULL DEFAULT 0,
         ts BIGINT NOT NULL
       )`;
-      await sql`CREATE INDEX IF NOT EXISTS idx_entries_date ON entries (date)`;
-      const seeded = await sql`SELECT id FROM goals WHERE id = 1`;
-      if (seeded.length === 0) {
-        await sql`INSERT INTO goals (id, calories, protein, carbs, fat)
-          VALUES (1, ${DEFAULT_GOALS.calories}, ${DEFAULT_GOALS.protein}, ${DEFAULT_GOALS.carbs}, ${DEFAULT_GOALS.fat})`;
-      }
+      await sql`CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date)`;
     })().catch((e) => {
       ready = null; // allow retry on next request if init failed
       throw e;

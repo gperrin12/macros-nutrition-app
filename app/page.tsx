@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { api } from "@/lib/core/api-client";
 import {
   DEFAULT_GOALS,
@@ -40,6 +41,7 @@ function Stat({ mk, val, goal, big }: { mk: (typeof MAC)[number]; val: number; g
 }
 
 export default function Page() {
+  const { data: session } = useSession();
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -81,8 +83,12 @@ export default function Page() {
       setStaged(res.items.map((it) => ({ id: uid(), ...it })));
       setNote(res.note);
       setInput("");
-    } catch {
-      setErr("parse error — rephrase, or add a row manually");
+    } catch (ex) {
+      const msg = ex instanceof Error ? ex.message : "";
+      if (msg.startsWith("401")) setErr("not signed in — refresh and sign in again");
+      else if (msg.startsWith("502")) setErr("lookup failed — check ANTHROPIC_API_KEY on the server");
+      else if (msg.startsWith("422")) setErr("no items parsed — rephrase, or add a row manually");
+      else setErr(msg ? `lookup failed — ${msg}` : "lookup failed — try again or add a row manually");
     }
     setLoading(false);
   }
@@ -147,12 +153,26 @@ export default function Page() {
           <span className="cur" style={{ fontSize: 17 }}>▊</span>
           <span style={{ color: COLORS.dim, fontSize: 11 }}>v0.1</span>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          {(["today", "history", "export"] as const).map((k) => (
-            <div key={k} className={`tab${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
-              {k.toUpperCase()}
-            </div>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {session ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {session.user?.email && (
+                <span style={{ color: COLORS.dim, fontSize: 11 }}>{session.user.email}</span>
+              )}
+              <button className="gbtn" onClick={() => signOut({ callbackUrl: "/login" })}>[ sign out ]</button>
+            </span>
+          ) : (
+            <a href="/login" className="gbtn" style={{ textDecoration: "none" }}>
+              [ sign in ]
+            </a>
+          )}
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["today", "history", "export"] as const).map((k) => (
+              <div key={k} className={`tab${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
+                {k.toUpperCase()}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

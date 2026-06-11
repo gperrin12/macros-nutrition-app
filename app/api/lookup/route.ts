@@ -1,9 +1,14 @@
 import { estimateFood } from "@/lib/anthropic";
 import { lookupRequestSchema } from "@/lib/core/schema";
+import { requireEmail } from "@/lib/session";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  // Gate on auth so only signed-in users can spend Anthropic credits.
+  const session = await requireEmail();
+  if ("error" in session) return session.error;
+
   let body: unknown;
   try {
     body = await req.json();

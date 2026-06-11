@@ -17,22 +17,34 @@ async function j<T>(res: Response): Promise<T> {
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
+const FETCH_OPTS: RequestInit = { credentials: "include" };
+
 export const api = {
   lookup: (text: string) =>
-    fetch(`${BASE}/api/lookup`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ text }) }).then(
-      (r) => j<LookupResult>(r),
-    ),
+    fetch(`${BASE}/api/lookup`, {
+      ...FETCH_OPTS,
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ text }),
+    }).then((r) => j<LookupResult>(r)),
 
-  getGoals: () => fetch(`${BASE}/api/goals`).then((r) => j<Goals>(r)),
+  getGoals: () => fetch(`${BASE}/api/goals`, FETCH_OPTS).then((r) => j<Goals>(r)),
   putGoals: (goals: Goals) =>
-    fetch(`${BASE}/api/goals`, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(goals) }).then((r) =>
-      j<Goals>(r),
-    ),
+    fetch(`${BASE}/api/goals`, {
+      ...FETCH_OPTS,
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(goals),
+    }).then((r) => j<Goals>(r)),
 
-  getEntries: () => fetch(`${BASE}/api/entries`).then((r) => j<Entry[]>(r)),
+  getEntries: () => fetch(`${BASE}/api/entries`, FETCH_OPTS).then((r) => j<Entry[]>(r)),
   createEntries: (date: string, items: LookupItem[]) =>
-    fetch(`${BASE}/api/entries`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ date, items }) }).then(
-      (r) => j<Entry[]>(r),
-    ),
-  deleteEntry: (id: string) => fetch(`${BASE}/api/entries/${id}`, { method: "DELETE" }).then((r) => j<{ ok: true }>(r)),
+    fetch(`${BASE}/api/entries`, {
+      ...FETCH_OPTS,
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ date, items }),
+    }).then((r) => j<Entry[]>(r)),
+  deleteEntry: (id: string) =>
+    fetch(`${BASE}/api/entries/${id}`, { ...FETCH_OPTS, method: "DELETE" }).then((r) => j<{ ok: true }>(r)),
 };
