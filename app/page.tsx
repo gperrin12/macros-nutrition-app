@@ -154,11 +154,17 @@ export default function Page() {
           <span style={{ color: COLORS.dim, fontSize: 11 }}>v0.1</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {session?.user?.email && (
+          {session ? (
             <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: COLORS.dim, fontSize: 11 }}>{session.user.email}</span>
+              {session.user?.email && (
+                <span style={{ color: COLORS.dim, fontSize: 11 }}>{session.user.email}</span>
+              )}
               <button className="gbtn" onClick={() => signOut({ callbackUrl: "/login" })}>[ sign out ]</button>
             </span>
+          ) : (
+            <a href="/login" className="gbtn" style={{ textDecoration: "none" }}>
+              [ sign in ]
+            </a>
           )}
           <div style={{ display: "flex", gap: 4 }}>
             {(["today", "history", "export"] as const).map((k) => (
