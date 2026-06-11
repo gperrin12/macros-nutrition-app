@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { api } from "@/lib/core/api-client";
 import {
   DEFAULT_GOALS,
@@ -40,6 +41,7 @@ function Stat({ mk, val, goal, big }: { mk: (typeof MAC)[number]; val: number; g
 }
 
 export default function Page() {
+  const { data: session } = useSession();
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -147,12 +149,20 @@ export default function Page() {
           <span className="cur" style={{ fontSize: 17 }}>▊</span>
           <span style={{ color: COLORS.dim, fontSize: 11 }}>v0.1</span>
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
-          {(["today", "history", "export"] as const).map((k) => (
-            <div key={k} className={`tab${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
-              {k.toUpperCase()}
-            </div>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {session?.user?.email && (
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: COLORS.dim, fontSize: 11 }}>{session.user.email}</span>
+              <button className="gbtn" onClick={() => signOut({ callbackUrl: "/login" })}>[ sign out ]</button>
+            </span>
+          )}
+          <div style={{ display: "flex", gap: 4 }}>
+            {(["today", "history", "export"] as const).map((k) => (
+              <div key={k} className={`tab${tab === k ? " on" : ""}`} onClick={() => setTab(k)}>
+                {k.toUpperCase()}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

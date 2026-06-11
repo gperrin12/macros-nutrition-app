@@ -1,15 +1,18 @@
 # macros
 
-A personal nutrition tracker. Type what you ate in plain English — *"2 eggs
-scrambled in butter, 1 banana"* — and an LLM estimates the calories, protein,
-carbs, and fat. Review, tweak, and write it to your daily log. Track against your
-targets, browse 14-day history, and export everything as JSON or CSV.
+A nutrition tracker. Type what you ate in plain English — *"2 eggs scrambled in
+butter, 1 banana"* — and an LLM estimates the calories, protein, carbs, and fat.
+Review, tweak, and write it to your daily log. Track against your targets, browse
+14-day history, and export everything as JSON or CSV.
+
+Multi-user: sign in with GitHub or Google, and each account gets its own log.
 
 The whole thing wears an amber-CRT terminal look: monospace, minimal, DOS-ish.
 
 ## Stack
 
 - **Next.js 15** (App Router) + **React 19** + **TypeScript**
+- **Auth.js (NextAuth v5)** — Sign in with GitHub / Google (OAuth, JWT sessions)
 - **Neon Postgres** (`@neondatabase/serverless`) — serverless Postgres over HTTP
 - **Anthropic API** — Claude Haiku for food → macros estimation (raw REST, no SDK)
 - **Zod** for request/response validation
@@ -19,13 +22,29 @@ The whole thing wears an amber-CRT terminal look: monospace, minimal, DOS-ish.
 
 ```bash
 npm install
-cp .env.example .env      # then add ANTHROPIC_API_KEY + DATABASE_URL
-npm run dev               # http://localhost:3000
+cp .env.example .env      # then fill in the values below
+npx auth secret          # generates AUTH_SECRET into .env
+npm run dev              # http://localhost:3000
 ```
 
-You need both `ANTHROPIC_API_KEY` and a Neon `DATABASE_URL` to run — there's no
-local-file fallback. Tables are created automatically on the first request. It's
-fine to point local dev at the same Neon database you use in production.
+You need `ANTHROPIC_API_KEY`, a Neon `DATABASE_URL`, `AUTH_SECRET`, and at least
+one OAuth provider (`AUTH_GITHUB_ID`/`AUTH_GITHUB_SECRET` or the Google pair).
+There's no local-file DB fallback. Tables are created automatically on the first
+request; it's fine to point local dev at the same Neon database as production.
+
+### Setting up OAuth
+
+Register an app with at least one provider and paste the credentials into `.env`.
+The callback URL is always `/api/auth/callback/{provider}`.
+
+- **GitHub** — [Developer settings → OAuth Apps](https://github.com/settings/developers).
+  Callback: `http://localhost:3000/api/auth/callback/github` (one URL per app, so
+  use a separate app for production).
+- **Google** — [Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials),
+  OAuth client ID (Web). Add redirect URIs for both local and production.
+
+Anyone with a Google/GitHub account can sign in and get their own empty log. To
+restrict access, add a `signIn` callback allowlist in [auth.ts](auth.ts).
 
 ## Environment variables
 
@@ -35,8 +54,23 @@ See `.env.example` for the template. Summary:
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | **Yes** | Powers the natural-language food lookup. |
 | `DATABASE_URL` | **Yes** | Neon Postgres connection string (use the pooled one). |
-| `APP_PASSWORD` | Optional | Single shared password gate. Unset = open app. Set for public deploys. |
+| `AUTH_SECRET` | **Yes** | Signs the session JWT (`npx auth secret`). |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | One provider | GitHub OAuth app credentials. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | One provider | Google OAuth client credentials. |
+| `AUTH_URL` | Prod | Deployed origin, e.g. `https://your-app.vercel.app`. |
+| `OWNER_EMAIL` | One-time | Email to assign existing data to during migration. |
 | `NEXT_PUBLIC_API_BASE` / `EXPO_PUBLIC_API_BASE` | Optional | API origin for a future Expo/iOS client. |
+
+### Migrating an existing single-user database
+
+If you have data from before multi-user, assign it to your account once:
+
+```bash
+OWNER_EMAIL=you@example.com node --env-file=.env scripts/migrate-multiuser.mjs
+```
+
+It adds `user_id` to the existing rows (set to `OWNER_EMAIL`) and re-keys the
+`goals` table. It's idempotent and safe to re-run. Fresh databases don't need it.
 
 ## Scripts
 
@@ -57,20 +91,24 @@ See `.env.example` for the template. Summary:
 
 ## Deploying
 
-Designed for Vercel. Set `ANTHROPIC_API_KEY`, your Neon `DATABASE_URL`, and an
-`APP_PASSWORD` so the deploy isn't wide open. The `@neondatabase/serverless`
-driver talks to Neon over HTTP, so it works cleanly in serverless functions
-without connection-pool headaches.
+Designed for Vercel. Set `ANTHROPIC_API_KEY`, your Neon `DATABASE_URL`,
+`AUTH_SECRET`, the OAuth provider credentials, and `AUTH_URL` (your deployed
+origin). Register the production callback URL(s) with each OAuth provider. The
+`@neondatabase/serverless` driver talks to Neon over HTTP, so it works cleanly in
+serverless functions without connection-pool headaches.
 
 ## Project layout
 
 ```
-app/            Next.js routes + API handlers (lookup, entries, goals, auth)
-components/      Bar + Box terminal-UI primitives
+auth.ts           Auth.js config (GitHub/Google, JWT sessions)
+app/              Next.js routes + API handlers (lookup, entries, goals, auth)
+components/       Bar + Box terminal-UI primitives
 lib/anthropic.ts  Anthropic REST call (food → macros)
-lib/db.ts         libSQL client + schema bootstrap
+lib/db.ts         Neon Postgres client + schema bootstrap
+lib/session.ts    requireEmail() helper for API routes
 lib/core/         Portable domain logic (types, macros, schema, prompt, theme)
-middleware.ts     Optional password gate
+middleware.ts     Auth.js gate in front of pages + API
+scripts/          One-time multi-user migration
 ```
 
 `lib/core/` is intentionally framework-free (no React/Next/DOM) so it can be
