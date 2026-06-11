@@ -15,6 +15,7 @@ export const COLORS = {
   protein: "#7BC97F",
   carbs: "#D9CE7A",
   fat: "#E5604E",
+  fiber: "#9BB5C8",
 } as const;
 
 export const MACRO_COLOR: Record<MacroKey, string> = {
@@ -22,6 +23,7 @@ export const MACRO_COLOR: Record<MacroKey, string> = {
   protein: COLORS.protein,
   carbs: COLORS.carbs,
   fat: COLORS.fat,
+  fiber: COLORS.fiber,
 };
 
 export const MONO = `"SFMono-Regular", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace`;

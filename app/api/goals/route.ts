@@ -8,10 +8,10 @@ export const runtime = "nodejs";
 
 // Read the user's goals, seeding DEFAULT_GOALS the first time they have none.
 async function readOrSeedGoals(email: string): Promise<Goals> {
-  const rows = await sql`SELECT calories, protein, carbs, fat FROM goals WHERE user_id = ${email}`;
+  const rows = await sql`SELECT calories, protein, carbs, fat, fiber FROM goals WHERE user_id = ${email}`;
   if (rows.length === 0) {
-    await sql`INSERT INTO goals (user_id, calories, protein, carbs, fat)
-      VALUES (${email}, ${DEFAULT_GOALS.calories}, ${DEFAULT_GOALS.protein}, ${DEFAULT_GOALS.carbs}, ${DEFAULT_GOALS.fat})
+    await sql`INSERT INTO goals (user_id, calories, protein, carbs, fat, fiber)
+      VALUES (${email}, ${DEFAULT_GOALS.calories}, ${DEFAULT_GOALS.protein}, ${DEFAULT_GOALS.carbs}, ${DEFAULT_GOALS.fat}, ${DEFAULT_GOALS.fiber})
       ON CONFLICT (user_id) DO NOTHING`;
     return { ...DEFAULT_GOALS };
   }
@@ -21,6 +21,7 @@ async function readOrSeedGoals(email: string): Promise<Goals> {
     protein: Number(row.protein),
     carbs: Number(row.carbs),
     fat: Number(row.fat),
+    fiber: Number(row.fiber ?? DEFAULT_GOALS.fiber),
   };
 }
 
@@ -38,9 +39,9 @@ export async function PUT(req: Request) {
   const parsed = goalsSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "invalid goals" }, { status: 400 });
   const g = parsed.data;
-  await sql`INSERT INTO goals (user_id, calories, protein, carbs, fat)
-    VALUES (${session.email}, ${g.calories}, ${g.protein}, ${g.carbs}, ${g.fat})
+  await sql`INSERT INTO goals (user_id, calories, protein, carbs, fat, fiber)
+    VALUES (${session.email}, ${g.calories}, ${g.protein}, ${g.carbs}, ${g.fat}, ${g.fiber})
     ON CONFLICT (user_id) DO UPDATE
-    SET calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat`;
+    SET calories = EXCLUDED.calories, protein = EXCLUDED.protein, carbs = EXCLUDED.carbs, fat = EXCLUDED.fat, fiber = EXCLUDED.fiber`;
   return Response.json(g);
 }

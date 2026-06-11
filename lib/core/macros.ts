@@ -1,18 +1,19 @@
 import type { Entry, Goals, MacroKey } from "./types";
 
-export const MACRO_KEYS: MacroKey[] = ["calories", "protein", "carbs", "fat"];
+export const MACRO_KEYS: MacroKey[] = ["calories", "protein", "carbs", "fat", "fiber"];
 
-export const MAC: { key: MacroKey; label: string; unit: string }[] = [
-  { key: "calories", label: "CAL", unit: "kcal" },
-  { key: "protein", label: "PROTEIN", unit: "g" },
-  { key: "carbs", label: "CARBS", unit: "g" },
-  { key: "fat", label: "FAT", unit: "g" },
+export const MAC: { key: MacroKey; label: string; unit: string; short: string }[] = [
+  { key: "calories", label: "CAL", unit: "kcal", short: "KCAL" },
+  { key: "protein", label: "PROTEIN", unit: "g", short: "P" },
+  { key: "carbs", label: "CARBS", unit: "g", short: "C" },
+  { key: "fat", label: "FAT", unit: "g", short: "F" },
+  { key: "fiber", label: "FIBER", unit: "g", short: "FI" },
 ];
 
-export const DEFAULT_GOALS: Goals = { calories: 2800, protein: 175, carbs: 340, fat: 75 };
+export const DEFAULT_GOALS: Goals = { calories: 2800, protein: 175, carbs: 340, fat: 75, fiber: 35 };
 
 export function emptyTotals(): Goals {
-  return { calories: 0, protein: 0, carbs: 0, fat: 0 };
+  return { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
 }
 
 export function sumEntries(entries: Entry[]): Goals {
@@ -61,9 +62,13 @@ export function buildCSV(entries: Entry[]): string {
     const str = s == null ? "" : String(s);
     return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   };
-  const rows: (string | number)[][] = [["date", "food", "serving", "calories", "protein", "carbs", "fat"]];
+  const rows: (string | number)[][] = [
+    ["date", "food", "serving", "calories", "protein", "carbs", "fat", "fiber"],
+  ];
   [...entries]
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts))
-    .forEach((e) => rows.push([e.date, esc(e.food), esc(e.serving), e.calories, e.protein, e.carbs, e.fat]));
+    .forEach((e) =>
+      rows.push([e.date, esc(e.food), esc(e.serving), e.calories, e.protein, e.carbs, e.fat, e.fiber]),
+    );
   return rows.map((r) => r.join(",")).join("\n");
 }

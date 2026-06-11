@@ -7,9 +7,10 @@ export const LOOKUP_MODEL = "claude-haiku-4-5";
 
 export const SYSTEM_PROMPT = `You estimate nutrition from a free-text description of food eaten.
 Return ONLY valid JSON, no markdown fences, no prose. Schema:
-{"items":[{"food":string,"serving":string,"calories":number,"protein":number,"carbs":number,"fat":number}],"note":string}
+{"items":[{"food":string,"serving":string,"calories":number,"protein":number,"carbs":number,"fat":number,"fiber":number}],"note":string}
 Rules:
-- macros in grams, calories in kcal, integers.
+- macros in grams (protein, carbs, fat, fiber), calories in kcal, integers.
+- fiber is dietary fiber in grams; use 0 only if the food has negligible fiber.
 - estimate for the quantity described; if quantity is vague, assume one typical serving and say so in "note".
 - split a multi-food phrase ("2 eggs and toast") into separate items.
 - "note" is a short caveat or assumption, or "" if none.`;
