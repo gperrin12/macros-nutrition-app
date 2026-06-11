@@ -1,0 +1,38 @@
+import type { Entry, Goals, LookupItem, LookupResult } from "./types";
+
+// Same-origin on web. For the future Expo app, set EXPO_PUBLIC_API_BASE to the
+// deployed origin and reuse this file unchanged.
+const BASE =
+  (typeof process !== "undefined" &&
+    (process.env.NEXT_PUBLIC_API_BASE || process.env.EXPO_PUBLIC_API_BASE)) ||
+  "";
+
+async function j<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+const JSON_HEADERS = { "content-type": "application/json" };
+
+export const api = {
+  lookup: (text: string) =>
+    fetch(`${BASE}/api/lookup`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ text }) }).then(
+      (r) => j<LookupResult>(r),
+    ),
+
+  getGoals: () => fetch(`${BASE}/api/goals`).then((r) => j<Goals>(r)),
+  putGoals: (goals: Goals) =>
+    fetch(`${BASE}/api/goals`, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(goals) }).then((r) =>
+      j<Goals>(r),
+    ),
+
+  getEntries: () => fetch(`${BASE}/api/entries`).then((r) => j<Entry[]>(r)),
+  createEntries: (date: string, items: LookupItem[]) =>
+    fetch(`${BASE}/api/entries`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ date, items }) }).then(
+      (r) => j<Entry[]>(r),
+    ),
+  deleteEntry: (id: string) => fetch(`${BASE}/api/entries/${id}`, { method: "DELETE" }).then((r) => j<{ ok: true }>(r)),
+};
