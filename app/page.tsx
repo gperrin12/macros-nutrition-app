@@ -6,8 +6,10 @@ import { api } from "@/lib/core/api-client";
 import {
   DEFAULT_GOALS,
   MAC,
+  MACRO_KEYS,
   buildCSV,
   buildJSON,
+  emptyTotals,
   mmdd,
   num,
   prettyDate,
@@ -21,7 +23,55 @@ import type { Entry, Goals, MacroKey } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 
-type Staged = { id: string; food: string; serving: string; calories: number; protein: number; carbs: number; fat: number };
+type Staged = {
+  id: string;
+  food: string;
+  serving: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+};
+
+function HistoryChart({
+  title,
+  macro,
+  goal,
+  history,
+  color,
+}: {
+  title: string;
+  macro: MacroKey;
+  goal: number;
+  history: ({ date: string } & Goals)[];
+  color: string;
+}) {
+  const max = Math.max(goal, ...history.map((d) => d[macro]), 1);
+  return (
+    <Box title={title} right="14 DAYS">
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+        {history.map((d) => (
+          <div key={d.date} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ color: COLORS.dim, width: 44, flexShrink: 0 }}>{mmdd(d.date)}</span>
+            <Bar value={d[macro]} max={max} goal={goal} cells={26} color={color} />
+            <span
+              style={{
+                marginLeft: "auto",
+                color: d[macro] > goal ? COLORS.fat : d[macro] ? COLORS.bone : COLORS.dim,
+              }}
+            >
+              {d[macro] || "·"}
+            </span>
+          </div>
+        ))}
+        <div style={{ color: COLORS.dim, fontSize: 11, marginTop: 8 }}>
+          <span style={{ color: COLORS.accent }}>│</span> target {goal} &nbsp; <span style={{ color: COLORS.fat }}>█</span> over
+        </div>
+      </div>
+    </Box>
+  );
+}
 
 function Stat({ mk, val, goal, big }: { mk: (typeof MAC)[number]; val: number; goal: number; big?: boolean }) {
   const left = goal - val;
@@ -100,7 +150,7 @@ export default function Page() {
       ),
     );
   const addManual = () =>
-    setStaged((s) => [...s, { id: uid(), food: "", serving: "", calories: 0, protein: 0, carbs: 0, fat: 0 }]);
+    setStaged((s) => [...s, { id: uid(), food: "", serving: "", calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }]);
 
   async function logStaged() {
     const items = staged.filter((it) => it.food.trim()).map(({ id, ...rest }) => rest);
@@ -134,10 +184,10 @@ export default function Page() {
     const days = [...Array(14)].map((_, i) => shift(today(), -(13 - i)));
     const by: Record<string, Goals> = {};
     for (const e of entries) {
-      by[e.date] ||= { calories: 0, protein: 0, carbs: 0, fat: 0 };
-      (["calories", "protein", "carbs", "fat"] as MacroKey[]).forEach((k) => (by[e.date][k] += e[k] || 0));
+      by[e.date] ||= emptyTotals();
+      MACRO_KEYS.forEach((k) => (by[e.date][k] += e[k] || 0));
     }
-    return days.map((d) => ({ date: d, ...(by[d] || { calories: 0, protein: 0, carbs: 0, fat: 0 }) }));
+    return days.map((d) => ({ date: d, ...(by[d] || emptyTotals()) }));
   }, [entries]);
 
   const loggedDays = useMemo(() => new Set(entries.map((e) => e.date)).size, [entries]);
@@ -231,7 +281,7 @@ export default function Page() {
                       <div style={{ display: "flex", gap: 8 }}>
                         {MAC.map((m) => (
                           <label key={m.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                            <span style={{ color: MACRO_COLOR[m.key], fontSize: 10, letterSpacing: 0.5 }}>{m.key === "calories" ? "KCAL" : m.label[0]}</span>
+                            <span style={{ color: MACRO_COLOR[m.key], fontSize: 10, letterSpacing: 0.5 }}>{m.short}</span>
                             <input className="num" type="number" value={it[m.key]} onChange={(e) => editStaged(it.id, m.key, e.target.value)} />
                           </label>
                         ))}
@@ -262,7 +312,7 @@ export default function Page() {
                   <div style={{ color: COLORS.bone, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.food}</div>
                   <div style={{ fontSize: 11, color: COLORS.dim, marginTop: 1 }}>
                     {e.serving ? e.serving + "  " : ""}
-                    <span style={{ color: COLORS.protein }}>{e.protein}p</span> <span style={{ color: COLORS.carbs }}>{e.carbs}c</span> <span style={{ color: COLORS.fat }}>{e.fat}f</span>
+                    <span style={{ color: COLORS.protein }}>{e.protein}p</span> <span style={{ color: COLORS.carbs }}>{e.carbs}c</span> <span style={{ color: COLORS.fat }}>{e.fat}f</span> <span style={{ color: COLORS.fiber }}>{e.fiber}fi</span>
                   </div>
                 </div>
                 <span style={{ color: COLORS.calories, width: 56, textAlign: "right" }}>{e.calories}</span>
@@ -275,31 +325,14 @@ export default function Page() {
 
       {loaded && tab === "history" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Box title="CALORIES" right="14 DAYS">
-            {(() => {
-              const max = Math.max(goals.calories, ...history.map((d) => d.calories), 1);
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
-                  {history.map((d) => (
-                    <div key={d.date} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ color: COLORS.dim, width: 44, flexShrink: 0 }}>{mmdd(d.date)}</span>
-                      <Bar value={d.calories} max={max} goal={goals.calories} cells={26} color={COLORS.calories} />
-                      <span style={{ marginLeft: "auto", color: d.calories > goals.calories ? COLORS.fat : d.calories ? COLORS.bone : COLORS.dim }}>{d.calories || "·"}</span>
-                    </div>
-                  ))}
-                  <div style={{ color: COLORS.dim, fontSize: 11, marginTop: 8 }}>
-                    <span style={{ color: COLORS.accent }}>│</span> target {goals.calories} &nbsp; <span style={{ color: COLORS.fat }}>█</span> over
-                  </div>
-                </div>
-              );
-            })()}
-          </Box>
+          <HistoryChart title="CALORIES" macro="calories" goal={goals.calories} history={history} color={COLORS.calories} />
+          <HistoryChart title="PROTEIN" macro="protein" goal={goals.protein} history={history} color={COLORS.protein} />
           <div style={{ border: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column" }}>
             {[...history].reverse().filter((d) => d.calories > 0).map((d, i) => (
               <div key={d.date} style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", borderTop: i ? `1px solid ${COLORS.border}` : "none", fontSize: 12 }}>
                 <span style={{ color: COLORS.bone }}>{prettyDate(d.date)}</span>
                 <span>
-                  <span style={{ color: COLORS.calories }}>{d.calories}</span> <span style={{ color: COLORS.protein }}>{d.protein}p</span> <span style={{ color: COLORS.carbs }}>{d.carbs}c</span> <span style={{ color: COLORS.fat }}>{d.fat}f</span>
+                  <span style={{ color: COLORS.calories }}>{d.calories}</span> <span style={{ color: COLORS.protein }}>{d.protein}p</span> <span style={{ color: COLORS.carbs }}>{d.carbs}c</span> <span style={{ color: COLORS.fat }}>{d.fat}f</span> <span style={{ color: COLORS.fiber }}>{d.fiber}fi</span>
                 </span>
               </div>
             ))}

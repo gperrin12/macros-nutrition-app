@@ -16,6 +16,7 @@ function rowToEntry(row: Record<string, unknown>): Entry {
     protein: Number(row.protein),
     carbs: Number(row.carbs),
     fat: Number(row.fat),
+    fiber: Number(row.fiber ?? 0),
     ts: Number(row.ts), // BIGINT comes back as a string; coerce to number
   };
 }
@@ -48,12 +49,13 @@ export async function POST(req: Request) {
     protein: it.protein,
     carbs: it.carbs,
     fat: it.fat,
+    fiber: it.fiber,
     ts: now + i,
   }));
 
-  // One multi-row INSERT: build ($1..$10), ($11..$20), … and a flat params array.
+  // One multi-row INSERT: build ($1..$11), ($12..$22), … and a flat params array.
   // user_id is stored but not part of the Entry returned to the client.
-  const cols = 10;
+  const cols = 11;
   const placeholders = created
     .map((_, i) => `(${Array.from({ length: cols }, (_, k) => `$${i * cols + k + 1}`).join(", ")})`)
     .join(", ");
@@ -67,11 +69,12 @@ export async function POST(req: Request) {
     e.protein,
     e.carbs,
     e.fat,
+    e.fiber,
     e.ts,
   ]);
 
   await sql.query(
-    `INSERT INTO entries (id, user_id, date, food, serving, calories, protein, carbs, fat, ts) VALUES ${placeholders}`,
+    `INSERT INTO entries (id, user_id, date, food, serving, calories, protein, carbs, fat, fiber, ts) VALUES ${placeholders}`,
     params,
   );
 

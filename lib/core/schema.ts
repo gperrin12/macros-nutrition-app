@@ -10,6 +10,7 @@ export const lookupItemSchema = z.object({
   protein: macroNum.catch(0),
   carbs: macroNum.catch(0),
   fat: macroNum.catch(0),
+  fiber: macroNum.catch(0),
 });
 
 export const lookupResultSchema = z.object({
@@ -22,6 +23,7 @@ export const goalsSchema = z.object({
   protein: macroNum,
   carbs: macroNum,
   fat: macroNum,
+  fiber: macroNum,
 });
 
 // POST /api/entries — commit one or more staged items to a given day.

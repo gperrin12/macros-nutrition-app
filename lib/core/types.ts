@@ -1,13 +1,14 @@
 // Portable domain types. No React, no Next, no DOM — safe to lift into a
 // shared package when the Expo/iOS app arrives.
 
-export type MacroKey = "calories" | "protein" | "carbs" | "fat";
+export type MacroKey = "calories" | "protein" | "carbs" | "fat" | "fiber";
 
 export interface Goals {
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
 }
 
 export interface Entry {
@@ -19,6 +20,7 @@ export interface Entry {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
   ts: number; // epoch ms, for stable ordering within a day
 }
 
@@ -30,6 +32,7 @@ export interface LookupItem {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
 }
 
 export interface LookupResult {

@@ -20,7 +20,8 @@ export function ensureSchema(): Promise<void> {
         calories INTEGER NOT NULL,
         protein INTEGER NOT NULL,
         carbs INTEGER NOT NULL,
-        fat INTEGER NOT NULL
+        fat INTEGER NOT NULL,
+        fiber INTEGER NOT NULL DEFAULT 35
       )`;
       await sql`CREATE TABLE IF NOT EXISTS entries (
         id TEXT PRIMARY KEY,
@@ -32,9 +33,13 @@ export function ensureSchema(): Promise<void> {
         protein INTEGER NOT NULL DEFAULT 0,
         carbs INTEGER NOT NULL DEFAULT 0,
         fat INTEGER NOT NULL DEFAULT 0,
+        fiber INTEGER NOT NULL DEFAULT 0,
         ts BIGINT NOT NULL
       )`;
       await sql`CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date)`;
+      // Idempotent column adds for DBs created before fiber was introduced.
+      await sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 35`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 0`;
     })().catch((e) => {
       ready = null; // allow retry on next request if init failed
       throw e;
