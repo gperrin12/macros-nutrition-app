@@ -83,8 +83,12 @@ export default function Page() {
       setStaged(res.items.map((it) => ({ id: uid(), ...it })));
       setNote(res.note);
       setInput("");
-    } catch {
-      setErr("parse error — rephrase, or add a row manually");
+    } catch (ex) {
+      const msg = ex instanceof Error ? ex.message : "";
+      if (msg.startsWith("401")) setErr("not signed in — refresh and sign in again");
+      else if (msg.startsWith("502")) setErr("lookup failed — check ANTHROPIC_API_KEY on the server");
+      else if (msg.startsWith("422")) setErr("no items parsed — rephrase, or add a row manually");
+      else setErr(msg ? `lookup failed — ${msg}` : "lookup failed — try again or add a row manually");
     }
     setLoading(false);
   }
