@@ -228,31 +228,33 @@ export default function Page() {
         </div>
       </div>
 
+      {loaded && (
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <button
+            type="button"
+            className="gbtn"
+            onClick={() => setCalendarOpen(true)}
+            style={{
+              color: COLORS.bright,
+              letterSpacing: 1,
+              fontSize: 13,
+              border: `1px solid ${calendarOpen ? COLORS.accent : COLORS.border}`,
+              padding: "6px 14px",
+            }}
+          >
+            {prettyDate(date)}
+            <span style={{ color: COLORS.accent, marginLeft: 8 }}>▼</span>
+          </button>
+        </div>
+      )}
+      {calendarOpen && (
+        <DatePicker value={date} onChange={setDate} onClose={() => setCalendarOpen(false)} />
+      )}
+
       {!loaded && <div style={{ color: COLORS.dim, padding: 40, textAlign: "center" }}>reading log<span className="cur">_</span></div>}
 
       {loaded && tab === "today" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <button
-              type="button"
-              className="gbtn"
-              onClick={() => setCalendarOpen(true)}
-              style={{
-                color: COLORS.bright,
-                letterSpacing: 1,
-                fontSize: 13,
-                border: `1px solid ${calendarOpen ? COLORS.accent : COLORS.border}`,
-                padding: "6px 14px",
-              }}
-            >
-              {prettyDate(date)}
-              <span style={{ color: COLORS.accent, marginLeft: 8 }}>▼</span>
-            </button>
-          </div>
-          {calendarOpen && (
-            <DatePicker value={date} onChange={setDate} onClose={() => setCalendarOpen(false)} />
-          )}
-
           <Box title="TARGETS" right={editGoals ? undefined : "READOUT"}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
               <button className="gbtn" onClick={() => setEditGoals((v) => !v)}>{editGoals ? "[ done ]" : "[ edit ]"}</button>
