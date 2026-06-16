@@ -22,6 +22,7 @@ import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
 import type { Entry, Goals, MacroKey } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
+import { DatePicker } from "@/components/DatePicker";
 
 type Staged = {
   id: string;
@@ -103,6 +104,7 @@ export default function Page() {
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const [editGoals, setEditGoals] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -230,11 +232,25 @@ export default function Page() {
 
       {loaded && tab === "today" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <button className="gbtn" onClick={() => setDate(shift(date, -1))} style={{ fontSize: 16 }}>◂</button>
-            <span style={{ color: COLORS.bright, letterSpacing: 1, fontSize: 13 }}>{prettyDate(date)}</span>
-            <button className="gbtn" onClick={() => setDate(shift(date, 1))} disabled={date === today()} style={{ fontSize: 16, opacity: date === today() ? 0.3 : 1 }}>▸</button>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <button
+              type="button"
+              className="gbtn"
+              onClick={() => setCalendarOpen(true)}
+              style={{
+                color: COLORS.bright,
+                letterSpacing: 1,
+                fontSize: 13,
+                border: `1px solid ${calendarOpen ? COLORS.accent : COLORS.border}`,
+                padding: "6px 14px",
+              }}
+            >
+              {prettyDate(date)} ▾
+            </button>
           </div>
+          {calendarOpen && (
+            <DatePicker value={date} onChange={setDate} onClose={() => setCalendarOpen(false)} />
+          )}
 
           <Box title="TARGETS" right={editGoals ? undefined : "READOUT"}>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
@@ -345,7 +361,7 @@ export default function Page() {
 
       <div className="statusbar">
         <span><span style={{ color: COLORS.accent }}>↵</span> look up</span>
-        <span><span style={{ color: COLORS.accent }}>◂ ▸</span> change day</span>
+        <span><span style={{ color: COLORS.accent }}>▾</span> pick day</span>
         <span><span style={{ color: COLORS.accent }}>×</span> remove</span>
         <span style={{ marginLeft: "auto" }}>saved to your db · yours to export</span>
       </div>
