@@ -245,7 +245,8 @@ export default function Page() {
                 padding: "6px 14px",
               }}
             >
-              {prettyDate(date)} ▾
+              {prettyDate(date)}
+              <span style={{ color: COLORS.accent, marginLeft: 8 }}>▼</span>
             </button>
           </div>
           {calendarOpen && (
@@ -361,7 +362,7 @@ export default function Page() {
 
       <div className="statusbar">
         <span><span style={{ color: COLORS.accent }}>↵</span> look up</span>
-        <span><span style={{ color: COLORS.accent }}>▾</span> pick day</span>
+        <span><span style={{ color: COLORS.accent }}>▼</span> pick day</span>
         <span><span style={{ color: COLORS.accent }}>×</span> remove</span>
         <span style={{ marginLeft: "auto" }}>saved to your db · yours to export</span>
       </div>
