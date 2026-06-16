@@ -45,6 +45,30 @@ export const mmdd = (s: string): string => {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 };
 
+export const parseYmd = (s: string): { y: number; m: number; d: number } => {
+  const x = new Date(s + "T00:00:00");
+  return { y: x.getFullYear(), m: x.getMonth() + 1, d: x.getDate() };
+};
+
+export const shiftMonth = (year: number, month: number, n: number): { y: number; m: number } => {
+  const x = new Date(year, month - 1 + n, 1);
+  return { y: x.getFullYear(), m: x.getMonth() + 1 };
+};
+
+export const monthTitle = (year: number, month: number): string =>
+  new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" }).toUpperCase();
+
+/** Sunday-first grid: null pads leading cells, then YYYY-MM-DD strings. */
+export function calendarGrid(year: number, month: number): (string | null)[] {
+  const lead = new Date(year, month - 1, 1).getDay();
+  const days = new Date(year, month, 0).getDate();
+  const cells: (string | null)[] = Array.from({ length: lead }, () => null);
+  for (let d = 1; d <= days; d++) {
+    cells.push(`${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  }
+  return cells;
+}
+
 export const uid = (): string => Math.random().toString(36).slice(2, 10);
 export const num = (v: unknown): number => {
   const n = Math.round(Number(v));
