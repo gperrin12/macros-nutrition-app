@@ -3,6 +3,8 @@ import { z } from "zod";
 // Coerce + clamp so a sloppy model response still validates instead of 500-ing.
 const macroNum = z.coerce.number().finite().transform((n) => Math.max(0, Math.round(n)));
 
+export const mealSchema = z.enum(["breakfast", "lunch", "dinner", "snack"]);
+
 export const lookupItemSchema = z.object({
   food: z.string().trim().min(1).catch("item"),
   serving: z.string().trim().catch(""),
@@ -27,9 +29,11 @@ export const goalsSchema = z.object({
 });
 
 // POST /api/entries — commit one or more staged items to a given day.
+export const logItemSchema = lookupItemSchema.extend({ meal: mealSchema });
+
 export const createEntriesSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  items: z.array(lookupItemSchema).min(1),
+  items: z.array(logItemSchema).min(1),
 });
 
 export const lookupRequestSchema = z.object({
