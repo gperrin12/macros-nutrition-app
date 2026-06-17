@@ -1,6 +1,17 @@
-import type { Entry, Goals, MacroKey } from "./types";
+import type { Entry, Goals, MacroKey, Meal } from "./types";
 
 export const MACRO_KEYS: MacroKey[] = ["calories", "protein", "carbs", "fat", "fiber"];
+
+export const MEALS: Meal[] = ["breakfast", "lunch", "dinner", "snack"];
+
+export const MEAL_LABEL: Record<Meal, string> = {
+  breakfast: "BREAKFAST",
+  lunch: "LUNCH",
+  dinner: "DINNER",
+  snack: "SNACK",
+};
+
+const MEAL_ORDER: Record<Meal, number> = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
 
 export const MAC: { key: MacroKey; label: string; unit: string; short: string }[] = [
   { key: "calories", label: "CAL", unit: "kcal", short: "KCAL" },
@@ -20,6 +31,24 @@ export function sumEntries(entries: Entry[]): Goals {
   const t = emptyTotals();
   for (const e of entries) for (const k of MACRO_KEYS) t[k] += e[k] || 0;
   return t;
+}
+
+export function entriesByMeal(entries: Entry[]): Record<Meal, Entry[]> {
+  const out: Record<Meal, Entry[]> = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  for (const e of entries) {
+    const m = MEALS.includes(e.meal) ? e.meal : "snack";
+    out[m].push(e);
+  }
+  for (const m of MEALS) out[m].sort((a, b) => a.ts - b.ts);
+  return out;
+}
+
+function compareEntries(a: Entry, b: Entry): number {
+  if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+  const ma = MEAL_ORDER[a.meal] ?? 3;
+  const mb = MEAL_ORDER[b.meal] ?? 3;
+  if (ma !== mb) return ma - mb;
+  return a.ts - b.ts;
 }
 
 /* ---- dates (local time) ---- */
@@ -69,6 +98,15 @@ export function calendarGrid(year: number, month: number): (string | null)[] {
   return cells;
 }
 
+/** Rough local-time guess for which meal bucket to pre-select. */
+export function defaultMeal(): Meal {
+  const h = new Date().getHours();
+  if (h < 11) return "breakfast";
+  if (h < 15) return "lunch";
+  if (h < 21) return "dinner";
+  return "snack";
+}
+
 export const uid = (): string => Math.random().toString(36).slice(2, 10);
 export const num = (v: unknown): number => {
   const n = Math.round(Number(v));
@@ -77,7 +115,7 @@ export const num = (v: unknown): number => {
 
 /* ---- export builders ---- */
 export function buildJSON(goals: Goals, entries: Entry[]): string {
-  const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts));
+  const sorted = [...entries].sort(compareEntries);
   return JSON.stringify({ goals, entries: sorted }, null, 2);
 }
 
@@ -87,12 +125,10 @@ export function buildCSV(entries: Entry[]): string {
     return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   };
   const rows: (string | number)[][] = [
-    ["date", "food", "serving", "calories", "protein", "carbs", "fat", "fiber"],
+    ["date", "meal", "food", "serving", "calories", "protein", "carbs", "fat", "fiber"],
   ];
-  [...entries]
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts))
-    .forEach((e) =>
-      rows.push([e.date, esc(e.food), esc(e.serving), e.calories, e.protein, e.carbs, e.fat, e.fiber]),
-    );
+  [...entries].sort(compareEntries).forEach((e) =>
+    rows.push([e.date, e.meal, esc(e.food), esc(e.serving), e.calories, e.protein, e.carbs, e.fat, e.fiber]),
+  );
   return rows.map((r) => r.join(",")).join("\n");
 }

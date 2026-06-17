@@ -34,12 +34,14 @@ export function ensureSchema(): Promise<void> {
         carbs INTEGER NOT NULL DEFAULT 0,
         fat INTEGER NOT NULL DEFAULT 0,
         fiber INTEGER NOT NULL DEFAULT 0,
+        meal TEXT NOT NULL DEFAULT 'snack',
         ts BIGINT NOT NULL
       )`;
       await sql`CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date)`;
       // Idempotent column adds for DBs created before fiber was introduced.
       await sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 35`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 0`;
+      await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS meal TEXT NOT NULL DEFAULT 'snack'`;
     })().catch((e) => {
       ready = null; // allow retry on next request if init failed
       throw e;

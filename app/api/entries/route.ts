@@ -1,15 +1,17 @@
 import { sql, ensureSchema } from "@/lib/db";
-import { createEntriesSchema } from "@/lib/core/schema";
+import { createEntriesSchema, mealSchema } from "@/lib/core/schema";
 import { uid } from "@/lib/core/macros";
 import { requireEmail } from "@/lib/session";
-import type { Entry } from "@/lib/core/types";
+import type { Entry, Meal } from "@/lib/core/types";
 
 export const runtime = "nodejs";
 
 function rowToEntry(row: Record<string, unknown>): Entry {
+  const meal = mealSchema.catch("snack").parse(row.meal ?? "snack");
   return {
     id: String(row.id),
     date: String(row.date),
+    meal,
     food: String(row.food),
     serving: String(row.serving ?? ""),
     calories: Number(row.calories),
@@ -43,6 +45,7 @@ export async function POST(req: Request) {
   const created: Entry[] = items.map((it, i) => ({
     id: uid(),
     date,
+    meal: it.meal as Meal,
     food: it.food,
     serving: it.serving,
     calories: it.calories,
@@ -53,9 +56,9 @@ export async function POST(req: Request) {
     ts: now + i,
   }));
 
-  // One multi-row INSERT: build ($1..$11), ($12..$22), … and a flat params array.
+  // One multi-row INSERT: build ($1..$12), ($13..$24), … and a flat params array.
   // user_id is stored but not part of the Entry returned to the client.
-  const cols = 11;
+  const cols = 12;
   const placeholders = created
     .map((_, i) => `(${Array.from({ length: cols }, (_, k) => `$${i * cols + k + 1}`).join(", ")})`)
     .join(", ");
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
     e.id,
     session.email,
     e.date,
+    e.meal,
     e.food,
     e.serving,
     e.calories,
@@ -74,7 +78,7 @@ export async function POST(req: Request) {
   ]);
 
   await sql.query(
-    `INSERT INTO entries (id, user_id, date, food, serving, calories, protein, carbs, fat, fiber, ts) VALUES ${placeholders}`,
+    `INSERT INTO entries (id, user_id, date, meal, food, serving, calories, protein, carbs, fat, fiber, ts) VALUES ${placeholders}`,
     params,
   );
 

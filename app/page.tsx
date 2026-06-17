@@ -7,9 +7,13 @@ import {
   DEFAULT_GOALS,
   MAC,
   MACRO_KEYS,
+  MEALS,
+  MEAL_LABEL,
   buildCSV,
   buildJSON,
+  defaultMeal,
   emptyTotals,
+  entriesByMeal,
   mmdd,
   num,
   prettyDate,
@@ -19,13 +23,14 @@ import {
   uid,
 } from "@/lib/core/macros";
 import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
-import type { Entry, Goals, MacroKey } from "@/lib/core/types";
+import type { Entry, Goals, MacroKey, Meal } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 import { DatePicker } from "@/components/DatePicker";
 
 type Staged = {
   id: string;
+  meal: Meal;
   food: string;
   serving: string;
   calories: number;
@@ -34,6 +39,23 @@ type Staged = {
   fat: number;
   fiber: number;
 };
+
+function EntryRow({ e, onRemove }: { e: Entry; onRemove: (id: string) => void }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", padding: "9px 12px", gap: 10 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ color: COLORS.bone, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.food}</div>
+        <div style={{ fontSize: 11, color: COLORS.dim, marginTop: 1 }}>
+          {e.serving ? e.serving + "  " : ""}
+          <span style={{ color: COLORS.protein }}>{e.protein}p</span> <span style={{ color: COLORS.carbs }}>{e.carbs}c</span>{" "}
+          <span style={{ color: COLORS.fat }}>{e.fat}f</span> <span style={{ color: COLORS.fiber }}>{e.fiber}fi</span>
+        </div>
+      </div>
+      <span style={{ color: COLORS.calories, width: 56, textAlign: "right" }}>{e.calories}</span>
+      <button className="gbtn" onClick={() => onRemove(e.id)}>×</button>
+    </div>
+  );
+}
 
 function HistoryChart({
   title,
@@ -105,6 +127,7 @@ export default function Page() {
   const [err, setErr] = useState("");
   const [editGoals, setEditGoals] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [meal, setMeal] = useState<Meal>(() => defaultMeal());
 
   useEffect(() => {
     (async () => {
@@ -122,6 +145,7 @@ export default function Page() {
   }, []);
 
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date), [entries, date]);
+  const byMeal = useMemo(() => entriesByMeal(dayEntries), [dayEntries]);
   const totals = useMemo(() => sumEntries(dayEntries), [dayEntries]);
 
   async function lookup() {
@@ -132,7 +156,7 @@ export default function Page() {
     setNote("");
     try {
       const res = await api.lookup(q);
-      setStaged(res.items.map((it) => ({ id: uid(), ...it })));
+      setStaged(res.items.map((it) => ({ id: uid(), meal, ...it })));
       setNote(res.note);
       setInput("");
     } catch (ex) {
@@ -152,7 +176,7 @@ export default function Page() {
       ),
     );
   const addManual = () =>
-    setStaged((s) => [...s, { id: uid(), food: "", serving: "", calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }]);
+    setStaged((s) => [...s, { id: uid(), meal, food: "", serving: "", calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }]);
 
   async function logStaged() {
     const items = staged.filter((it) => it.food.trim()).map(({ id, ...rest }) => rest);
@@ -279,7 +303,14 @@ export default function Page() {
             )}
           </Box>
 
-          <Box title="LOG FOOD">
+          <Box title="LOG FOOD" right={MEAL_LABEL[meal]}>
+            <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
+              {MEALS.map((m) => (
+                <div key={m} className={`tab${meal === m ? " on" : ""}`} onClick={() => setMeal(m)}>
+                  {MEAL_LABEL[m]}
+                </div>
+              ))}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: COLORS.inset, border: `1px solid ${COLORS.border}`, padding: "9px 11px" }}>
               <span style={{ color: COLORS.accent }}>&gt;</span>
               <input className="tin" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && lookup()} placeholder="2 eggs scrambled in butter, 1 banana" />
@@ -318,26 +349,44 @@ export default function Page() {
             {staged.length === 0 && <button className="gbtn" onClick={addManual} style={{ marginTop: 10 }}>+ add manually</button>}
           </Box>
 
-          {/* logged */}
+          {/* logged — grouped by meal */}
           <div style={{ display: "flex", flexDirection: "column", border: `1px solid ${COLORS.border}` }}>
-            <div style={{ display: "flex", color: COLORS.dim, fontSize: 11, padding: "6px 12px", borderBottom: `1px solid ${COLORS.border}`, letterSpacing: 1 }}>
-              <span style={{ flex: 1 }}>ENTRY</span>
-              <span style={{ width: 56, textAlign: "right" }}>KCAL</span>
-            </div>
-            {dayEntries.length === 0 && <div style={{ color: COLORS.dim, fontSize: 12, padding: "16px 12px", textAlign: "center" }}>— empty — describe what you ate above —</div>}
-            {dayEntries.map((e) => (
-              <div key={e.id} style={{ display: "flex", alignItems: "center", padding: "9px 12px", gap: 10 }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ color: COLORS.bone, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.food}</div>
-                  <div style={{ fontSize: 11, color: COLORS.dim, marginTop: 1 }}>
-                    {e.serving ? e.serving + "  " : ""}
-                    <span style={{ color: COLORS.protein }}>{e.protein}p</span> <span style={{ color: COLORS.carbs }}>{e.carbs}c</span> <span style={{ color: COLORS.fat }}>{e.fat}f</span> <span style={{ color: COLORS.fiber }}>{e.fiber}fi</span>
-                  </div>
-                </div>
-                <span style={{ color: COLORS.calories, width: 56, textAlign: "right" }}>{e.calories}</span>
-                <button className="gbtn" onClick={() => removeEntry(e.id)}>×</button>
+            {dayEntries.length === 0 && (
+              <div style={{ color: COLORS.dim, fontSize: 12, padding: "16px 12px", textAlign: "center" }}>
+                — empty — pick a meal above and describe what you ate —
               </div>
-            ))}
+            )}
+            {MEALS.map((m, i) => {
+              const items = byMeal[m];
+              const sub = sumEntries(items);
+              if (dayEntries.length === 0) return null;
+              return (
+                <div key={m} style={{ borderTop: i ? `1px solid ${COLORS.border}` : undefined }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      color: meal === m ? COLORS.accent : COLORS.dim,
+                      fontSize: 11,
+                      padding: "6px 12px",
+                      letterSpacing: 1,
+                      background: COLORS.inset,
+                    }}
+                  >
+                    <span>{MEAL_LABEL[m]}</span>
+                    <span style={{ color: sub.calories ? COLORS.bone : COLORS.dim }}>
+                      {sub.calories ? `${sub.calories} kcal` : "—"}
+                    </span>
+                  </div>
+                  {items.length === 0 ? (
+                    <div style={{ color: COLORS.dim, fontSize: 12, padding: "10px 12px" }}>—</div>
+                  ) : (
+                    items.map((e) => <EntryRow key={e.id} e={e} onRemove={removeEntry} />)
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

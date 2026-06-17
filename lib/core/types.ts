@@ -3,6 +3,8 @@
 
 export type MacroKey = "calories" | "protein" | "carbs" | "fat" | "fiber";
 
+export type Meal = "breakfast" | "lunch" | "dinner" | "snack";
+
 export interface Goals {
   calories: number;
   protein: number;
@@ -14,6 +16,7 @@ export interface Goals {
 export interface Entry {
   id: string;
   date: string; // YYYY-MM-DD (local)
+  meal: Meal;
   food: string;
   serving: string;
   calories: number;
@@ -22,6 +25,11 @@ export interface Entry {
   fat: number;
   fiber: number;
   ts: number; // epoch ms, for stable ordering within a day
+}
+
+// Staged / POST payload — macros from lookup or manual entry, plus meal bucket.
+export interface LogItem extends LookupItem {
+  meal: Meal;
 }
 
 // A single food the model returned, before it's committed to the log.
