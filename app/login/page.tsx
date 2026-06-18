@@ -17,38 +17,47 @@ export default function Login() {
         <div style={{ color: COLORS.dim, fontSize: 12, textAlign: "center", marginBottom: 14 }}>
           // sign in to your log
         </div>
-        {!hasGitHub && !hasGoogle ? (
-          <div style={{ color: COLORS.fat, fontSize: 12, textAlign: "center" }}>
-            ! auth not configured — set AUTH_SECRET and at least one OAuth provider on the server
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {hasGitHub && (
-              <form
-                action={async () => {
-                  "use server";
-                  await signIn("github", { redirectTo: "/" });
-                }}
-              >
-                <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
-                  &gt; SIGN IN WITH GITHUB
-                </button>
-              </form>
-            )}
-            {hasGoogle && (
-              <form
-                action={async () => {
-                  "use server";
-                  await signIn("google", { redirectTo: "/" });
-                }}
-              >
-                <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
-                  &gt; SIGN IN WITH GOOGLE
-                </button>
-              </form>
-            )}
+        {!hasGitHub && !hasGoogle && (
+          <div style={{ color: COLORS.dim, fontSize: 11, textAlign: "center", marginBottom: 10 }}>
+            // oauth not configured — guest sign-in still works with AUTH_SECRET
           </div>
         )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {hasGitHub && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("github", { redirectTo: "/" });
+              }}
+            >
+              <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
+                &gt; SIGN IN WITH GITHUB
+              </button>
+            </form>
+          )}
+          {hasGoogle && (
+            <form
+              action={async () => {
+                "use server";
+                await signIn("google", { redirectTo: "/" });
+              }}
+            >
+              <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
+                &gt; SIGN IN WITH GOOGLE
+              </button>
+            </form>
+          )}
+          <form
+            action={async () => {
+              "use server";
+              await signIn("guest", { redirectTo: "/" });
+            }}
+          >
+            <button className="btn" type="submit" style={{ width: "100%", padding: "9px 12px" }}>
+              &gt; CONTINUE AS GUEST
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
