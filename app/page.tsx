@@ -71,11 +71,9 @@ function HistoryChart({
   history: ({ date: string } & Goals)[];
   color: string;
 }) {
-  const values = history.map((d) => d[macro]);
-  const labels = history.map((d) => mmdd(d.date));
   return (
     <Box title={title} right="14 DAYS">
-      <LineChart values={values} goal={goal} labels={labels} color={color} />
+      <LineChart days={history} macro={macro} goal={goal} color={color} />
     </Box>
   );
 }

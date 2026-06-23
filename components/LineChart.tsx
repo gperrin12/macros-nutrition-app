@@ -1,5 +1,9 @@
-import { useMemo } from "react";
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { mmdd, prettyDate } from "@/lib/core/macros";
 import { COLORS } from "@/lib/core/theme";
+import type { Goals, MacroKey } from "@/lib/core/types";
 
 function rollingAvg(values: number[], window: number): number[] {
   return values.map((_, i) => {
@@ -14,18 +18,22 @@ function polyline(points: [number, number][]): string {
 }
 
 export function LineChart({
-  values,
+  days,
+  macro,
   goal,
-  labels,
   color,
   height = 120,
 }: {
-  values: number[];
+  days: ({ date: string } & Goals)[];
+  macro: MacroKey;
   goal: number;
-  labels: string[];
   color: string;
   height?: number;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+
+  const values = useMemo(() => days.map((d) => d[macro]), [days, macro]);
   const rolling = useMemo(() => rollingAvg(values, 7), [values]);
   const max = Math.max(goal, ...values, ...rolling, 1);
 
@@ -53,14 +61,37 @@ export function LineChart({
           i === Math.min(7, n) - 1 ? n - 1 : Math.round((i * (n - 1)) / (Math.min(7, n) - 1)),
         );
 
+  function pickIndex(clientX: number) {
+    const svg = svgRef.current;
+    if (!svg || n === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * W;
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const dist = Math.abs(xAt(i) - x);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    setHoverIdx(best);
+  }
+
+  const hover = hoverIdx !== null ? days[hoverIdx] : null;
+  const tipLeft = hoverIdx !== null ? (xAt(hoverIdx) / W) * 100 : 0;
+  const tipTop = hoverIdx !== null ? (yAt(values[hoverIdx]) / height) * 100 : 0;
+
   return (
-    <div>
+    <div style={{ position: "relative" }}>
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${W} ${height}`}
         width="100%"
         height={height}
-        style={{ display: "block", overflow: "visible" }}
-        aria-hidden
+        style={{ display: "block", overflow: "visible", cursor: "crosshair" }}
+        onMouseMove={(e) => pickIndex(e.clientX)}
+        onMouseLeave={() => setHoverIdx(null)}
       >
         {yTicks.map((tick) => {
           const y = yAt(tick);
@@ -106,8 +137,28 @@ export function LineChart({
           <polyline points={polyline(dailyPts)} fill="none" stroke={color} strokeWidth={1.5} />
         )}
 
+        {hoverIdx !== null && (
+          <line
+            x1={xAt(hoverIdx)}
+            y1={PT}
+            x2={xAt(hoverIdx)}
+            y2={PT + plotH}
+            stroke={COLORS.dim}
+            strokeWidth={1}
+            strokeDasharray="2 2"
+            opacity={0.6}
+          />
+        )}
+
         {dailyPts.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r={2.5} fill={color} />
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r={hoverIdx === i ? 4 : 2.5}
+            fill={color}
+            style={{ transition: "r 0.1s" }}
+          />
         ))}
 
         {xLabelIdx.map((i) => (
@@ -120,10 +171,42 @@ export function LineChart({
             fontSize={10}
             fontFamily="inherit"
           >
-            {labels[i]}
+            {mmdd(days[i].date)}
           </text>
         ))}
       </svg>
+
+      {hover && hoverIdx !== null && (
+        <div
+          style={{
+            position: "absolute",
+            left: `${tipLeft}%`,
+            top: `${tipTop}%`,
+            transform: `translate(-50%, calc(-100% - 8px))`,
+            pointerEvents: "none",
+            zIndex: 2,
+            border: `1px solid ${COLORS.border}`,
+            background: COLORS.inset,
+            padding: "6px 8px",
+            fontSize: 11,
+            lineHeight: 1.45,
+            whiteSpace: "nowrap",
+            boxShadow: `0 0 0 1px ${COLORS.bg}`,
+          }}
+        >
+          <div style={{ color: COLORS.bone, marginBottom: 3 }}>{prettyDate(hover.date)}</div>
+          <div>
+            <span style={{ color: COLORS.calories }}>{hover.calories}</span>{" "}
+            <span style={{ color: COLORS.protein }}>{hover.protein}p</span>{" "}
+            <span style={{ color: COLORS.carbs }}>{hover.carbs}c</span>{" "}
+            <span style={{ color: COLORS.fat }}>{hover.fat}f</span>{" "}
+            <span style={{ color: COLORS.fiber }}>{hover.fiber}fi</span>
+          </div>
+          <div style={{ color: COLORS.dim, marginTop: 3 }}>
+            7d avg {Math.round(rolling[hoverIdx])}
+          </div>
+        </div>
+      )}
 
       <div style={{ color: COLORS.dim, fontSize: 11, marginTop: 6, display: "flex", flexWrap: "wrap", gap: "12px 16px" }}>
         <span>
