@@ -27,6 +27,7 @@ import type { Entry, Goals, MacroKey, Meal } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 import { DatePicker } from "@/components/DatePicker";
+import { LineChart } from "@/components/LineChart";
 
 type Staged = {
   id: string;
@@ -70,28 +71,11 @@ function HistoryChart({
   history: ({ date: string } & Goals)[];
   color: string;
 }) {
-  const max = Math.max(goal, ...history.map((d) => d[macro]), 1);
+  const values = history.map((d) => d[macro]);
+  const labels = history.map((d) => mmdd(d.date));
   return (
     <Box title={title} right="14 DAYS">
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
-        {history.map((d) => (
-          <div key={d.date} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ color: COLORS.dim, width: 44, flexShrink: 0 }}>{mmdd(d.date)}</span>
-            <Bar value={d[macro]} max={max} goal={goal} cells={26} color={color} />
-            <span
-              style={{
-                marginLeft: "auto",
-                color: d[macro] > goal ? COLORS.fat : d[macro] ? COLORS.bone : COLORS.dim,
-              }}
-            >
-              {d[macro] || "·"}
-            </span>
-          </div>
-        ))}
-        <div style={{ color: COLORS.dim, fontSize: 11, marginTop: 8 }}>
-          <span style={{ color: COLORS.accent }}>│</span> target {goal} &nbsp; <span style={{ color: COLORS.fat }}>█</span> over
-        </div>
-      </div>
+      <LineChart values={values} goal={goal} labels={labels} color={color} />
     </Box>
   );
 }
