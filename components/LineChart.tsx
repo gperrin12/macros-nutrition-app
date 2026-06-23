@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { mmdd, prettyDate } from "@/lib/core/macros";
+import { MAC, mmdd, prettyDate } from "@/lib/core/macros";
 import { COLORS } from "@/lib/core/theme";
 import type { Goals, MacroKey } from "@/lib/core/types";
 
@@ -79,6 +79,7 @@ export function LineChart({
   }
 
   const hover = hoverIdx !== null ? days[hoverIdx] : null;
+  const macroMeta = MAC.find((m) => m.key === macro);
   const tipLeft = hoverIdx !== null ? (xAt(hoverIdx) / W) * 100 : 0;
   const tipTop = hoverIdx !== null ? (yAt(values[hoverIdx]) / height) * 100 : 0;
 
@@ -195,15 +196,11 @@ export function LineChart({
           }}
         >
           <div style={{ color: COLORS.bone, marginBottom: 3 }}>{prettyDate(hover.date)}</div>
-          <div>
-            <span style={{ color: COLORS.calories }}>{hover.calories}</span>{" "}
-            <span style={{ color: COLORS.protein }}>{hover.protein}p</span>{" "}
-            <span style={{ color: COLORS.carbs }}>{hover.carbs}c</span>{" "}
-            <span style={{ color: COLORS.fat }}>{hover.fat}f</span>{" "}
-            <span style={{ color: COLORS.fiber }}>{hover.fiber}fi</span>
+          <div style={{ color }}>
+            {hover[macro]} {macroMeta?.unit ?? ""}
           </div>
           <div style={{ color: COLORS.dim, marginTop: 3 }}>
-            7d avg {Math.round(rolling[hoverIdx])}
+            7d avg {Math.round(rolling[hoverIdx])} {macroMeta?.unit ?? ""}
           </div>
         </div>
       )}
