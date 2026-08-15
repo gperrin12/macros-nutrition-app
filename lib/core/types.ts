@@ -47,3 +47,9 @@ export interface LookupResult {
   items: LookupItem[];
   note: string;
 }
+
+// One weigh-in per calendar day (lbs). Re-saving the same date overwrites.
+export interface WeightLog {
+  date: string; // YYYY-MM-DD (local)
+  weight: number; // pounds
+}

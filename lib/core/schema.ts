@@ -40,5 +40,26 @@ export const lookupRequestSchema = z.object({
   text: z.string().trim().min(1).max(2000),
 });
 
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+// One decimal place, typical bathroom-scale precision. Clamp to a humane range
+// so a pasted typo can't write 0 or 99999 into the chart.
+export const weightLbsSchema = z.coerce
+  .number()
+  .finite()
+  .refine((n) => n > 0 && n < 1000, "weight must be between 0 and 1000 lbs")
+  .transform((n) => Math.round(n * 10) / 10);
+
+export const upsertWeightSchema = z.object({
+  date: ymd,
+  weight: weightLbsSchema,
+});
+
+export const importWeightsSchema = z.object({
+  items: z.array(upsertWeightSchema).min(1).max(5000),
+});
+
 export type GoalsInput = z.infer<typeof goalsSchema>;
 export type CreateEntriesInput = z.infer<typeof createEntriesSchema>;
+export type UpsertWeightInput = z.infer<typeof upsertWeightSchema>;
+export type ImportWeightsInput = z.infer<typeof importWeightsSchema>;
