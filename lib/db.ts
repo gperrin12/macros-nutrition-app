@@ -38,6 +38,12 @@ export function ensureSchema(): Promise<void> {
         ts BIGINT NOT NULL
       )`;
       await sql`CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date)`;
+      await sql`CREATE TABLE IF NOT EXISTS weights (
+        user_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        weight REAL NOT NULL,
+        PRIMARY KEY (user_id, date)
+      )`;
       // Idempotent column adds for DBs created before fiber was introduced.
       await sql`ALTER TABLE goals ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 35`;
       await sql`ALTER TABLE entries ADD COLUMN IF NOT EXISTS fiber INTEGER NOT NULL DEFAULT 0`;

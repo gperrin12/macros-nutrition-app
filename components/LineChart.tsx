@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { MAC, mmdd, prettyDate } from "@/lib/core/macros";
+import { mmdd, prettyDate } from "@/lib/core/macros";
 import { COLORS } from "@/lib/core/theme";
-import type { Goals, MacroKey } from "@/lib/core/types";
 
 function rollingAvg(values: number[], window: number): number[] {
   return values.map((_, i) => {
@@ -17,25 +16,56 @@ function polyline(points: [number, number][]): string {
   return points.map(([x, y]) => `${x},${y}`).join(" ");
 }
 
+function fmtNum(n: number): string {
+  const r = Math.round(n * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
+
+function xTick(date: string, withYear: boolean): string {
+  if (!withYear) return mmdd(date);
+  const d = new Date(date + "T00:00:00");
+  return `${mmdd(date)}/${String(d.getFullYear()).slice(2)}`;
+}
+
 export function LineChart({
   days,
-  macro,
-  goal,
   color,
   height = 120,
+  goal,
+  unit = "",
+  fromZero = true,
+  avgLabel = "7d avg",
 }: {
-  days: ({ date: string } & Goals)[];
-  macro: MacroKey;
-  goal: number;
+  days: { date: string; value: number }[];
   color: string;
   height?: number;
+  goal?: number;
+  unit?: string;
+  fromZero?: boolean;
+  avgLabel?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const values = useMemo(() => days.map((d) => d[macro]), [days, macro]);
+  const values = useMemo(() => days.map((d) => d.value), [days]);
   const rolling = useMemo(() => rollingAvg(values, 7), [values]);
-  const max = Math.max(goal, ...values, ...rolling, 1);
+
+  const spanYears = useMemo(() => {
+    if (days.length < 2) return false;
+    const a = new Date(days[0].date + "T00:00:00").getFullYear();
+    const b = new Date(days[days.length - 1].date + "T00:00:00").getFullYear();
+    return a !== b;
+  }, [days]);
+
+  const { yMin, yMax } = useMemo(() => {
+    const pool = [...values, ...rolling];
+    if (goal != null) pool.push(goal);
+    const hi = Math.max(...pool, 1);
+    if (fromZero) return { yMin: 0, yMax: hi };
+    const lo = Math.min(...pool);
+    const pad = Math.max(1, (hi - lo) * 0.12);
+    return { yMin: lo - pad, yMax: hi + pad };
+  }, [values, rolling, goal, fromZero]);
 
   const W = 640;
   const PL = 36;
@@ -45,15 +75,17 @@ export function LineChart({
   const plotW = W - PL - PR;
   const plotH = height - PT - PB;
   const n = values.length;
+  const showDots = n <= 80;
+  const range = yMax - yMin || 1;
 
   const xAt = (i: number) => (n <= 1 ? PL + plotW / 2 : PL + (i / (n - 1)) * plotW);
-  const yAt = (v: number) => PT + (1 - v / max) * plotH;
+  const yAt = (v: number) => PT + (1 - (v - yMin) / range) * plotH;
 
   const dailyPts = values.map((v, i) => [xAt(i), yAt(v)] as [number, number]);
   const avgPts = rolling.map((v, i) => [xAt(i), yAt(v)] as [number, number]);
-  const goalY = yAt(goal);
+  const goalY = goal != null ? yAt(goal) : null;
 
-  const yTicks = [0, max];
+  const yTicks = fromZero ? [0, yMax] : [Math.min(...values), Math.max(...values)];
   const xLabelIdx =
     n <= 1
       ? [0]
@@ -79,9 +111,16 @@ export function LineChart({
   }
 
   const hover = hoverIdx !== null ? days[hoverIdx] : null;
-  const macroMeta = MAC.find((m) => m.key === macro);
   const tipLeft = hoverIdx !== null ? (xAt(hoverIdx) / W) * 100 : 0;
   const tipTop = hoverIdx !== null ? (yAt(values[hoverIdx]) / height) * 100 : 0;
+
+  if (n === 0) {
+    return (
+      <div style={{ color: COLORS.dim, fontSize: 12, padding: "16px 0", textAlign: "center" }}>
+        — no data yet —
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "relative" }}>
@@ -107,22 +146,24 @@ export function LineChart({
                 fontSize={10}
                 fontFamily="inherit"
               >
-                {Math.round(tick)}
+                {fmtNum(tick)}
               </text>
             </g>
           );
         })}
 
-        <line
-          x1={PL}
-          y1={goalY}
-          x2={W - PR}
-          y2={goalY}
-          stroke={COLORS.accent}
-          strokeWidth={1}
-          strokeDasharray="4 3"
-          opacity={0.85}
-        />
+        {goalY != null && (
+          <line
+            x1={PL}
+            y1={goalY}
+            x2={W - PR}
+            y2={goalY}
+            stroke={COLORS.accent}
+            strokeWidth={1}
+            strokeDasharray="4 3"
+            opacity={0.85}
+          />
+        )}
 
         {avgPts.length > 1 && (
           <polyline
@@ -151,12 +192,12 @@ export function LineChart({
           />
         )}
 
-        {dailyPts.map(([x, y], i) => (
+        {(showDots ? dailyPts : hoverIdx !== null ? [dailyPts[hoverIdx]] : []).map(([x, y], i) => (
           <circle
-            key={i}
+            key={showDots ? i : hoverIdx}
             cx={x}
             cy={y}
-            r={hoverIdx === i ? 4 : 2.5}
+            r={hoverIdx === (showDots ? i : hoverIdx) ? 4 : 2.5}
             fill={color}
             style={{ transition: "r 0.1s" }}
           />
@@ -172,7 +213,7 @@ export function LineChart({
             fontSize={10}
             fontFamily="inherit"
           >
-            {mmdd(days[i].date)}
+            {xTick(days[i].date, spanYears)}
           </text>
         ))}
       </svg>
@@ -195,12 +236,17 @@ export function LineChart({
             boxShadow: `0 0 0 1px ${COLORS.bg}`,
           }}
         >
-          <div style={{ color: COLORS.bone, marginBottom: 3 }}>{prettyDate(hover.date)}</div>
+          <div style={{ color: COLORS.bone, marginBottom: 3 }}>
+            {prettyDate(hover.date)}
+            {new Date(hover.date + "T00:00:00").getFullYear() !== new Date().getFullYear()
+              ? ` ${hover.date.slice(0, 4)}`
+              : ""}
+          </div>
           <div style={{ color }}>
-            {hover[macro]} {macroMeta?.unit ?? ""}
+            {fmtNum(hover.value)} {unit}
           </div>
           <div style={{ color: COLORS.dim, marginTop: 3 }}>
-            7d avg {Math.round(rolling[hoverIdx])} {macroMeta?.unit ?? ""}
+            {avgLabel} {fmtNum(rolling[hoverIdx])} {unit}
           </div>
         </div>
       )}
@@ -209,11 +255,13 @@ export function LineChart({
         <span>
           <span style={{ color }}>─</span> daily
         </span>
+        {goal != null && (
+          <span>
+            <span style={{ color: COLORS.accent }}>┄</span> goal {fmtNum(goal)}
+          </span>
+        )}
         <span>
-          <span style={{ color: COLORS.accent }}>┄</span> goal {goal}
-        </span>
-        <span>
-          <span style={{ color: COLORS.dim }}>┄</span> 7d avg
+          <span style={{ color: COLORS.dim }}>┄</span> {avgLabel}
         </span>
       </div>
     </div>

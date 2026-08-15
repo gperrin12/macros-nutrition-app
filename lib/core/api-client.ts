@@ -1,4 +1,4 @@
-import type { Entry, Goals, LogItem, LookupResult } from "./types";
+import type { Entry, Goals, LogItem, LookupResult, WeightLog } from "./types";
 
 // Same-origin on web. For the future Expo app, set EXPO_PUBLIC_API_BASE to the
 // deployed origin and reuse this file unchanged.
@@ -47,4 +47,20 @@ export const api = {
     }).then((r) => j<Entry[]>(r)),
   deleteEntry: (id: string) =>
     fetch(`${BASE}/api/entries/${id}`, { ...FETCH_OPTS, method: "DELETE" }).then((r) => j<{ ok: true }>(r)),
+
+  getWeights: () => fetch(`${BASE}/api/weights`, FETCH_OPTS).then((r) => j<WeightLog[]>(r)),
+  putWeight: (date: string, weight: number) =>
+    fetch(`${BASE}/api/weights`, {
+      ...FETCH_OPTS,
+      method: "PUT",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ date, weight }),
+    }).then((r) => j<WeightLog>(r)),
+  importWeights: (items: WeightLog[]) =>
+    fetch(`${BASE}/api/weights`, {
+      ...FETCH_OPTS,
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ items }),
+    }).then((r) => j<WeightLog[]>(r)),
 };

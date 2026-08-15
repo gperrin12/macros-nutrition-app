@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { api } from "@/lib/core/api-client";
 import {
@@ -14,7 +14,6 @@ import {
   defaultMeal,
   emptyTotals,
   entriesByMeal,
-  mmdd,
   num,
   prettyDate,
   shift,
@@ -23,7 +22,8 @@ import {
   uid,
 } from "@/lib/core/macros";
 import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
-import type { Entry, Goals, MacroKey, Meal } from "@/lib/core/types";
+import { parseWeightCsv } from "@/lib/core/weight";
+import type { Entry, Goals, Meal, WeightLog } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 import { DatePicker } from "@/components/DatePicker";
@@ -60,22 +60,28 @@ function EntryRow({ e, onRemove }: { e: Entry; onRemove: (id: string) => void })
 
 function HistoryChart({
   title,
-  macro,
   goal,
   history,
   color,
+  unit,
 }: {
   title: string;
-  macro: MacroKey;
   goal: number;
-  history: ({ date: string } & Goals)[];
+  history: { date: string; value: number }[];
   color: string;
+  unit: string;
 }) {
   return (
     <Box title={title} right="14 DAYS">
-      <LineChart days={history} macro={macro} goal={goal} color={color} />
+      <LineChart days={history} goal={goal} color={color} unit={unit} />
     </Box>
   );
+}
+
+function mergeWeights(prev: WeightLog[], incoming: WeightLog[]): WeightLog[] {
+  const by = new Map(prev.map((w) => [w.date, w]));
+  for (const w of incoming) by.set(w.date, w);
+  return [...by.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
 function Stat({ mk, val, goal, big }: { mk: (typeof MAC)[number]; val: number; goal: number; big?: boolean }) {
@@ -99,6 +105,7 @@ export default function Page() {
   const { data: session } = useSession();
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [weights, setWeights] = useState<WeightLog[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"today" | "history" | "export">("today");
   const [date, setDate] = useState(today());
@@ -114,9 +121,10 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const [g, e] = await Promise.all([api.getGoals(), api.getEntries()]);
+        const [g, e, w] = await Promise.all([api.getGoals(), api.getEntries(), api.getWeights()]);
         setGoals(g);
         setEntries(e);
+        setWeights(w);
       } catch (ex) {
         console.error(ex);
         setErr("could not reach the server — is it running?");
@@ -285,6 +293,13 @@ export default function Page() {
             )}
           </Box>
 
+          <WeightDay
+            date={date}
+            weights={weights}
+            onSaved={(w) => setWeights((p) => mergeWeights(p, [w]))}
+            onImported={(items) => setWeights((p) => mergeWeights(p, items))}
+          />
+
           <Box title="LOG FOOD" right={MEAL_LABEL[meal]}>
             <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
               {MEALS.map((m) => (
@@ -375,8 +390,36 @@ export default function Page() {
 
       {loaded && tab === "history" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <HistoryChart title="CALORIES" macro="calories" goal={goals.calories} history={history} color={COLORS.calories} />
-          <HistoryChart title="PROTEIN" macro="protein" goal={goals.protein} history={history} color={COLORS.protein} />
+          <HistoryChart
+            title="CALORIES"
+            goal={goals.calories}
+            history={history.map((d) => ({ date: d.date, value: d.calories }))}
+            color={COLORS.calories}
+            unit="kcal"
+          />
+          <HistoryChart
+            title="PROTEIN"
+            goal={goals.protein}
+            history={history.map((d) => ({ date: d.date, value: d.protein }))}
+            color={COLORS.protein}
+            unit="g"
+          />
+          <Box title="WEIGHT" right={`${weights.length} ${weights.length === 1 ? "READ" : "READS"}`}>
+            <LineChart
+              days={weights.map((w) => ({ date: w.date, value: w.weight }))}
+              color={COLORS.accent}
+              unit="lbs"
+              fromZero={false}
+              avgLabel="7pt avg"
+              height={160}
+            />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, flexWrap: "wrap", gap: 8 }}>
+              <span style={{ color: COLORS.dim, fontSize: 12 }}>// csv: date, weight (lbs)</span>
+              <WeightImport
+                onImported={(items) => setWeights((p) => mergeWeights(p, items))}
+              />
+            </div>
+          </Box>
           <div style={{ border: `1px solid ${COLORS.border}`, display: "flex", flexDirection: "column" }}>
             {[...history].reverse().filter((d) => d.calories > 0).map((d, i) => (
               <div key={d.date} style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", borderTop: i ? `1px solid ${COLORS.border}` : "none", fontSize: 12 }}>
@@ -400,6 +443,126 @@ export default function Page() {
         <span style={{ marginLeft: "auto" }}>saved to your db · yours to export</span>
       </div>
     </div>
+  );
+}
+
+function WeightDay({
+  date,
+  weights,
+  onSaved,
+  onImported,
+}: {
+  date: string;
+  weights: WeightLog[];
+  onSaved: (w: WeightLog) => void;
+  onImported: (items: WeightLog[]) => void;
+}) {
+  const existing = weights.find((w) => w.date === date);
+  const [draft, setDraft] = useState(existing ? String(existing.weight) : "");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [localErr, setLocalErr] = useState("");
+  const latest = weights.length ? weights[weights.length - 1] : null;
+
+  useEffect(() => {
+    const w = weights.find((x) => x.date === date);
+    setDraft(w ? String(w.weight) : "");
+  }, [date, weights]);
+
+  async function save() {
+    const n = Number(draft);
+    if (!Number.isFinite(n) || n <= 0 || busy) return;
+    setBusy(true);
+    setLocalErr("");
+    try {
+      const saved = await api.putWeight(date, n);
+      onSaved(saved);
+      setFlash("saved");
+      setTimeout(() => setFlash(""), 1400);
+    } catch {
+      setLocalErr("could not save weight");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Box title="WEIGHT" right="LBS">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, background: COLORS.inset, border: `1px solid ${COLORS.border}`, padding: "9px 11px" }}>
+        <span style={{ color: COLORS.accent }}>&gt;</span>
+        <input
+          className="tin"
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="1"
+          max="999"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          placeholder="172.5"
+        />
+        <span style={{ color: COLORS.dim, fontSize: 12 }}>lbs</span>
+        <button className="btn" onClick={save} disabled={busy || !draft.trim()}>
+          {busy ? "WRITING…" : flash ? "SAVED ✓" : "WRITE"}
+        </button>
+      </div>
+      {localErr && <div style={{ color: COLORS.fat, fontSize: 12, marginTop: 8 }}>! {localErr}</div>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, flexWrap: "wrap", gap: 8 }}>
+        <span style={{ color: COLORS.dim, fontSize: 12 }}>
+          {existing
+            ? `// ${existing.weight} lbs on this day`
+            : latest
+              ? `// last ${latest.weight} lbs · ${prettyDate(latest.date)}`
+              : "// one reading per day"}
+        </span>
+        <WeightImport onImported={onImported} />
+      </div>
+    </Box>
+  );
+}
+
+function WeightImport({ onImported }: { onImported: (items: WeightLog[]) => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [localErr, setLocalErr] = useState("");
+
+  async function onFile(file: File | undefined) {
+    if (!file || busy) return;
+    const text = await file.text();
+    const { items, skipped } = parseWeightCsv(text);
+    if (fileRef.current) fileRef.current.value = "";
+    if (!items.length) {
+      setLocalErr("csv had no weigh-ins — need date and weight columns");
+      return;
+    }
+    setBusy(true);
+    setLocalErr("");
+    try {
+      const saved = await api.importWeights(items);
+      onImported(saved);
+      setFlash(`imported ${saved.length}${skipped ? ` · skipped ${skipped}` : ""}`);
+      setTimeout(() => setFlash(""), 3200);
+    } catch {
+      setLocalErr("could not import weights");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,text/csv"
+        style={{ display: "none" }}
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
+      {localErr && <span style={{ color: COLORS.fat, fontSize: 12 }}>! {localErr}</span>}
+      <button className="gbtn" onClick={() => fileRef.current?.click()} disabled={busy}>
+        {busy ? "[ importing… ]" : flash ? `[ ${flash} ]` : "[ import csv ]"}
+      </button>
+    </span>
   );
 }
 
