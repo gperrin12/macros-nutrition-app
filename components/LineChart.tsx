@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { mmdd, prettyDate } from "@/lib/core/macros";
+import { dstr, mmdd, prettyDate } from "@/lib/core/macros";
 import { COLORS } from "@/lib/core/theme";
 
 function rollingAvg(values: number[], window: number): number[] {
@@ -27,6 +27,22 @@ function xTick(date: string, withYear: boolean): string {
   return `${mmdd(date)}/${String(d.getFullYear()).slice(2)}`;
 }
 
+function epoch(date: string): number {
+  return new Date(date + "T00:00:00").getTime();
+}
+
+/** Evenly spaced calendar ticks across [start, end], independent of which days have data. */
+function domainTicks(start: string, end: string, count: number): string[] {
+  const t0 = epoch(start);
+  const t1 = epoch(end);
+  if (count <= 1 || t1 === t0) return [start];
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push(dstr(new Date(t0 + (i / (count - 1)) * (t1 - t0))));
+  }
+  return [...new Set(out)];
+}
+
 export function LineChart({
   days,
   color,
@@ -35,6 +51,7 @@ export function LineChart({
   unit = "",
   fromZero = true,
   avgLabel = "7d avg",
+  domain,
 }: {
   days: { date: string; value: number }[];
   color: string;
@@ -43,6 +60,8 @@ export function LineChart({
   unit?: string;
   fromZero?: boolean;
   avgLabel?: string;
+  /** Shared calendar window so stacked charts line up even when series are sparse. */
+  domain?: { start: string; end: string };
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -51,13 +70,14 @@ export function LineChart({
   const rolling = useMemo(() => rollingAvg(values, 7), [values]);
 
   const spanYears = useMemo(() => {
-    if (days.length < 2) return false;
-    const a = new Date(days[0].date + "T00:00:00").getFullYear();
-    const b = new Date(days[days.length - 1].date + "T00:00:00").getFullYear();
-    return a !== b;
-  }, [days]);
+    const start = domain?.start ?? days[0]?.date;
+    const end = domain?.end ?? days[days.length - 1]?.date;
+    if (!start || !end) return false;
+    return new Date(start + "T00:00:00").getFullYear() !== new Date(end + "T00:00:00").getFullYear();
+  }, [days, domain]);
 
   const { yMin, yMax } = useMemo(() => {
+    if (values.length === 0) return { yMin: 0, yMax: 1 };
     const pool = [...values, ...rolling];
     if (goal != null) pool.push(goal);
     const hi = Math.max(...pool, 1);
@@ -77,21 +97,25 @@ export function LineChart({
   const n = values.length;
   const showDots = n <= 80;
   const range = yMax - yMin || 1;
+  const start = domain?.start ?? days[0]?.date;
+  const end = domain?.end ?? days[days.length - 1]?.date;
+  const t0 = start ? epoch(start) : 0;
+  const t1 = end ? epoch(end) : 0;
 
-  const xAt = (i: number) => (n <= 1 ? PL + plotW / 2 : PL + (i / (n - 1)) * plotW);
+  const xAtDate = (date: string) => {
+    const t = epoch(date);
+    if (t1 === t0) return PL + plotW / 2;
+    return PL + ((t - t0) / (t1 - t0)) * plotW;
+  };
+  const xAt = (i: number) => xAtDate(days[i].date);
   const yAt = (v: number) => PT + (1 - (v - yMin) / range) * plotH;
 
   const dailyPts = values.map((v, i) => [xAt(i), yAt(v)] as [number, number]);
   const avgPts = rolling.map((v, i) => [xAt(i), yAt(v)] as [number, number]);
   const goalY = goal != null ? yAt(goal) : null;
 
-  const yTicks = fromZero ? [0, yMax] : [Math.min(...values), Math.max(...values)];
-  const xLabelIdx =
-    n <= 1
-      ? [0]
-      : Array.from({ length: Math.min(7, n) }, (_, i) =>
-          i === Math.min(7, n) - 1 ? n - 1 : Math.round((i * (n - 1)) / (Math.min(7, n) - 1)),
-        );
+  const yTicks = n === 0 ? [0, yMax] : fromZero ? [0, yMax] : [Math.min(...values), Math.max(...values)];
+  const xLabels = start && end ? domainTicks(start, end, 6) : [];
 
   function pickIndex(clientX: number) {
     const svg = svgRef.current;
@@ -110,11 +134,11 @@ export function LineChart({
     setHoverIdx(best);
   }
 
-  const hover = hoverIdx !== null ? days[hoverIdx] : null;
-  const tipLeft = hoverIdx !== null ? (xAt(hoverIdx) / W) * 100 : 0;
-  const tipTop = hoverIdx !== null ? (yAt(values[hoverIdx]) / height) * 100 : 0;
+  const hover = hoverIdx !== null && hoverIdx < n ? days[hoverIdx] : null;
+  const tipLeft = hoverIdx !== null && hoverIdx < n ? (xAt(hoverIdx) / W) * 100 : 0;
+  const tipTop = hoverIdx !== null && hoverIdx < n ? (yAt(values[hoverIdx]) / height) * 100 : 0;
 
-  if (n === 0) {
+  if (n === 0 && !domain) {
     return (
       <div style={{ color: COLORS.dim, fontSize: 12, padding: "16px 0", textAlign: "center" }}>
         — no data yet —
@@ -179,7 +203,7 @@ export function LineChart({
           <polyline points={polyline(dailyPts)} fill="none" stroke={color} strokeWidth={1.5} />
         )}
 
-        {hoverIdx !== null && (
+        {hoverIdx !== null && hoverIdx < n && (
           <line
             x1={xAt(hoverIdx)}
             y1={PT}
@@ -192,7 +216,7 @@ export function LineChart({
           />
         )}
 
-        {(showDots ? dailyPts : hoverIdx !== null ? [dailyPts[hoverIdx]] : []).map(([x, y], i) => (
+        {(showDots ? dailyPts : hoverIdx !== null && hoverIdx < n ? [dailyPts[hoverIdx]] : []).map(([x, y], i) => (
           <circle
             key={showDots ? i : hoverIdx}
             cx={x}
@@ -203,20 +227,26 @@ export function LineChart({
           />
         ))}
 
-        {xLabelIdx.map((i) => (
+        {xLabels.map((date) => (
           <text
-            key={i}
-            x={xAt(i)}
+            key={date}
+            x={xAtDate(date)}
             y={height - 4}
             textAnchor="middle"
             fill={COLORS.dim}
             fontSize={10}
             fontFamily="inherit"
           >
-            {xTick(days[i].date, spanYears)}
+            {xTick(date, spanYears)}
           </text>
         ))}
       </svg>
+
+      {n === 0 && (
+        <div style={{ color: COLORS.dim, fontSize: 12, padding: "8px 0 4px", textAlign: "center" }}>
+          — no data in this window —
+        </div>
+      )}
 
       {hover && hoverIdx !== null && (
         <div

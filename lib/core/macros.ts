@@ -74,6 +74,20 @@ export const mmdd = (s: string): string => {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 };
 
+export type HistoryWindow = "14d" | "30d" | "6mo" | "1y";
+
+export const HISTORY_WINDOWS: { key: HistoryWindow; label: string; days: number }[] = [
+  { key: "14d", label: "14D", days: 14 },
+  { key: "30d", label: "30D", days: 30 },
+  { key: "6mo", label: "6MO", days: 182 },
+  { key: "1y", label: "1Y", days: 365 },
+];
+
+/** Inclusive local-date range ending on `end`, length `n` (e.g. 14 → today and the 13 days before). */
+export function windowDates(end: string, n: number): string[] {
+  return Array.from({ length: n }, (_, i) => shift(end, -(n - 1 - i)));
+}
+
 export const parseYmd = (s: string): { y: number; m: number; d: number } => {
   const x = new Date(s + "T00:00:00");
   return { y: x.getFullYear(), m: x.getMonth() + 1, d: x.getDate() };
