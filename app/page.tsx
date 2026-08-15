@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { api } from "@/lib/core/api-client";
 import {
   DEFAULT_GOALS,
+  HISTORY_WINDOWS,
   MAC,
   MACRO_KEYS,
   MEALS,
@@ -16,10 +17,11 @@ import {
   entriesByMeal,
   num,
   prettyDate,
-  shift,
   sumEntries,
   today,
   uid,
+  windowDates,
+  type HistoryWindow,
 } from "@/lib/core/macros";
 import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
 import { parseWeightCsv } from "@/lib/core/weight";
@@ -64,16 +66,18 @@ function HistoryChart({
   history,
   color,
   unit,
+  domain,
 }: {
   title: string;
   goal: number;
   history: { date: string; value: number }[];
   color: string;
   unit: string;
+  domain: { start: string; end: string };
 }) {
   return (
-    <Box title={title} right="14 DAYS">
-      <LineChart days={history} goal={goal} color={color} unit={unit} />
+    <Box title={title}>
+      <LineChart days={history} goal={goal} color={color} unit={unit} domain={domain} />
     </Box>
   );
 }
@@ -117,6 +121,7 @@ export default function Page() {
   const [editGoals, setEditGoals] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [meal, setMeal] = useState<Meal>(() => defaultMeal());
+  const [histWindow, setHistWindow] = useState<HistoryWindow>("14d");
 
   useEffect(() => {
     (async () => {
@@ -196,15 +201,31 @@ export default function Page() {
     api.putGoals(g).catch(() => setErr("could not save targets"));
   }
 
+  const histDays = useMemo(() => {
+    const n = HISTORY_WINDOWS.find((w) => w.key === histWindow)?.days ?? 14;
+    return windowDates(today(), n);
+  }, [histWindow]);
+  const histDomain = useMemo(
+    () => ({ start: histDays[0], end: histDays[histDays.length - 1] }),
+    [histDays],
+  );
+
   const history = useMemo(() => {
-    const days = [...Array(14)].map((_, i) => shift(today(), -(13 - i)));
     const by: Record<string, Goals> = {};
+    const start = histDomain.start;
+    const end = histDomain.end;
     for (const e of entries) {
+      if (e.date < start || e.date > end) continue;
       by[e.date] ||= emptyTotals();
       MACRO_KEYS.forEach((k) => (by[e.date][k] += e[k] || 0));
     }
-    return days.map((d) => ({ date: d, ...(by[d] || emptyTotals()) }));
-  }, [entries]);
+    return histDays.map((d) => ({ date: d, ...(by[d] || emptyTotals()) }));
+  }, [entries, histDays, histDomain]);
+
+  const weightHistory = useMemo(
+    () => weights.filter((w) => w.date >= histDomain.start && w.date <= histDomain.end),
+    [weights, histDomain],
+  );
 
   const loggedDays = useMemo(() => new Set(entries.map((e) => e.date)).size, [entries]);
 
@@ -390,12 +411,27 @@ export default function Page() {
 
       {loaded && tab === "history" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <span style={{ color: COLORS.dim, fontSize: 11, letterSpacing: 1 }}>WINDOW</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {HISTORY_WINDOWS.map((w) => (
+                <div
+                  key={w.key}
+                  className={`tab${histWindow === w.key ? " on" : ""}`}
+                  onClick={() => setHistWindow(w.key)}
+                >
+                  {w.label}
+                </div>
+              ))}
+            </div>
+          </div>
           <HistoryChart
             title="CALORIES"
             goal={goals.calories}
             history={history.map((d) => ({ date: d.date, value: d.calories }))}
             color={COLORS.calories}
             unit="kcal"
+            domain={histDomain}
           />
           <HistoryChart
             title="PROTEIN"
@@ -403,15 +439,17 @@ export default function Page() {
             history={history.map((d) => ({ date: d.date, value: d.protein }))}
             color={COLORS.protein}
             unit="g"
+            domain={histDomain}
           />
-          <Box title="WEIGHT" right={`${weights.length} ${weights.length === 1 ? "READ" : "READS"}`}>
+          <Box title="WEIGHT" right={`${weightHistory.length} ${weightHistory.length === 1 ? "READ" : "READS"}`}>
             <LineChart
-              days={weights.map((w) => ({ date: w.date, value: w.weight }))}
+              days={weightHistory.map((w) => ({ date: w.date, value: w.weight }))}
               color={COLORS.accent}
               unit="lbs"
               fromZero={false}
               avgLabel="7pt avg"
               height={160}
+              domain={histDomain}
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, flexWrap: "wrap", gap: 8 }}>
               <span style={{ color: COLORS.dim, fontSize: 12 }}>// csv: date, weight (lbs)</span>
