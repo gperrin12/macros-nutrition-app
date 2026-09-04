@@ -91,15 +91,18 @@ function mergeWeights(prev: WeightLog[], incoming: WeightLog[]): WeightLog[] {
 function Stat({ mk, val, goal, big }: { mk: (typeof MAC)[number]; val: number; goal: number; big?: boolean }) {
   const left = goal - val;
   const over = val > goal;
+  const warn = over && mk.cap;
   const color = MACRO_COLOR[mk.key];
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: big ? 14 : 13, marginBottom: big ? 10 : 7 }}>
       <span style={{ color: COLORS.dim, width: 64, flexShrink: 0 }}>{mk.label}</span>
-      <Bar value={val} max={goal} goal={null} cells={big ? 24 : 18} color={color} />
+      <Bar value={val} goal={goal} cells={big ? 24 : 18} color={color} cap={mk.cap} />
       <span style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-        <span style={{ color: over ? COLORS.fat : color }}>{val}</span>
+        <span style={{ color: warn ? COLORS.fat : color }}>{val}</span>
         <span style={{ color: COLORS.dim }}>/{goal} {mk.unit}</span>
-        <span style={{ color: over ? COLORS.fat : COLORS.dim, marginLeft: 8 }}>{over ? `+${-left}` : `${left} left`}</span>
+        <span style={{ color: warn ? COLORS.fat : over ? color : COLORS.dim, marginLeft: 8 }}>
+          {over ? `+${-left}` : `${left} left`}
+        </span>
       </span>
     </div>
   );
