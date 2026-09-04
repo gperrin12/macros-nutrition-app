@@ -24,18 +24,17 @@ export const MAC: { key: MacroKey; label: string; unit: string; short: string; c
 
 export type BarCell = "fill" | "rest" | "over";
 
-/** Fixed-width progress cells. Caps rescale to `value` so overflow stays visible; floors treat going over as a full bar. */
+/** Goal is a fixed track. Caps append overflow cells past that track; floors treat going over as a full bar. */
 export function barCells(value: number, goal: number, cells: number, cap: boolean): BarCell[] {
-  const out: BarCell[] = Array.from({ length: cells }, () => "rest");
+  const out: BarCell[] = Array.from({ length: Math.max(0, cells) }, () => "rest");
   if (cells <= 0 || goal <= 0) return out;
-  if (cap && value > goal) {
-    const g = Math.max(0, Math.min(cells - 1, Math.round((goal / value) * cells)));
-    for (let i = 0; i < g; i++) out[i] = "fill";
-    for (let i = g; i < cells; i++) out[i] = "over";
-    return out;
-  }
-  const f = Math.max(0, Math.min(cells, Math.round((Math.min(value, goal) / goal) * cells)));
+  const overCap = cap && value > goal;
+  const f = overCap ? cells : Math.max(0, Math.min(cells, Math.round((value / goal) * cells)));
   for (let i = 0; i < f; i++) out[i] = "fill";
+  if (overCap) {
+    const extra = Math.max(1, Math.min(cells, Math.round(((value - goal) / goal) * cells)));
+    for (let i = 0; i < extra; i++) out.push("over");
+  }
   return out;
 }
 
