@@ -13,13 +13,31 @@ export const MEAL_LABEL: Record<Meal, string> = {
 
 const MEAL_ORDER: Record<Meal, number> = { breakfast: 0, lunch: 1, dinner: 2, snack: 3 };
 
-export const MAC: { key: MacroKey; label: string; unit: string; short: string }[] = [
-  { key: "calories", label: "CAL", unit: "kcal", short: "KCAL" },
-  { key: "protein", label: "PROTEIN", unit: "g", short: "P" },
-  { key: "carbs", label: "CARBS", unit: "g", short: "C" },
-  { key: "fat", label: "FAT", unit: "g", short: "F" },
-  { key: "fiber", label: "FIBER", unit: "g", short: "FI" },
+/** `cap: true` = a budget you don't want to blow (cal/carbs/fat). `false` = a floor you want to hit (protein/fiber). */
+export const MAC: { key: MacroKey; label: string; unit: string; short: string; cap: boolean }[] = [
+  { key: "calories", label: "CAL", unit: "kcal", short: "KCAL", cap: true },
+  { key: "protein", label: "PROTEIN", unit: "g", short: "P", cap: false },
+  { key: "carbs", label: "CARBS", unit: "g", short: "C", cap: true },
+  { key: "fat", label: "FAT", unit: "g", short: "F", cap: true },
+  { key: "fiber", label: "FIBER", unit: "g", short: "FI", cap: false },
 ];
+
+export type BarCell = "fill" | "rest" | "over";
+
+/** Fixed-width progress cells. Caps rescale to `value` so overflow stays visible; floors treat going over as a full bar. */
+export function barCells(value: number, goal: number, cells: number, cap: boolean): BarCell[] {
+  const out: BarCell[] = Array.from({ length: cells }, () => "rest");
+  if (cells <= 0 || goal <= 0) return out;
+  if (cap && value > goal) {
+    const g = Math.max(0, Math.min(cells - 1, Math.round((goal / value) * cells)));
+    for (let i = 0; i < g; i++) out[i] = "fill";
+    for (let i = g; i < cells; i++) out[i] = "over";
+    return out;
+  }
+  const f = Math.max(0, Math.min(cells, Math.round((Math.min(value, goal) / goal) * cells)));
+  for (let i = 0; i < f; i++) out[i] = "fill";
+  return out;
+}
 
 export const DEFAULT_GOALS: Goals = { calories: 2800, protein: 175, carbs: 340, fat: 75, fiber: 35 };
 
