@@ -21,13 +21,15 @@ export function Bar({
   cap: boolean;
 }) {
   const kinds = barCells(value, goal, cells, cap);
+  // Fat fill is already the warning red; overflow uses amber so it still contrasts.
+  const overColor = color === COLORS.fat ? COLORS.accent : COLORS.fat;
   return (
     <span style={{ letterSpacing: -0.5 }}>
       {kinds.map((k, i) => (
         <span
           key={i}
           style={{
-            color: k === "over" ? COLORS.fat : k === "fill" ? color : COLORS.border,
+            color: k === "over" ? overColor : k === "fill" ? color : COLORS.border,
           }}
         >
           {GLYPH[k]}
