@@ -1,4 +1,4 @@
-import type { Entry, Goals, MacroKey, Meal } from "./types";
+import type { Entry, Goals, MacroKey, Meal, UsualMeals } from "./types";
 
 export const MACRO_KEYS: MacroKey[] = ["calories", "protein", "carbs", "fat", "fiber"];
 
@@ -137,6 +137,16 @@ export function defaultMeal(): Meal {
   if (h < 21) return "dinner";
   return "snack";
 }
+
+/** How far back `/api/usual` looks when ranking plates per meal. */
+export const USUAL_LOOKBACK_DAYS = 28;
+
+export const EMPTY_USUAL_MEALS: UsualMeals = {
+  breakfast: null,
+  lunch: null,
+  dinner: null,
+  snack: null,
+};
 
 export const uid = (): string => Math.random().toString(36).slice(2, 10);
 export const num = (v: unknown): number => {

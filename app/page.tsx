@@ -13,6 +13,7 @@ import {
   buildCSV,
   buildJSON,
   defaultMeal,
+  EMPTY_USUAL_MEALS,
   emptyTotals,
   entriesByMeal,
   num,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/core/macros";
 import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
 import { parseWeightCsv } from "@/lib/core/weight";
-import type { Entry, Goals, Meal, WeightLog } from "@/lib/core/types";
+import type { Entry, Goals, Meal, UsualMeals, WeightLog } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 import { DatePicker } from "@/components/DatePicker";
@@ -112,6 +113,7 @@ export default function Page() {
   const { data: session } = useSession();
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [usuals, setUsuals] = useState<UsualMeals>(EMPTY_USUAL_MEALS);
   const [weights, setWeights] = useState<WeightLog[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"today" | "history" | "export">("today");
@@ -129,9 +131,10 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const [g, e, w] = await Promise.all([api.getGoals(), api.getEntries(), api.getWeights()]);
+        const [g, e, u, w] = await Promise.all([api.getGoals(), api.getEntries(), api.getUsualMeals(), api.getWeights()]);
         setGoals(g);
         setEntries(e);
+        setUsuals(u);
         setWeights(w);
       } catch (ex) {
         console.error(ex);
@@ -145,9 +148,14 @@ export default function Page() {
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date), [entries, date]);
   const byMeal = useMemo(() => entriesByMeal(dayEntries), [dayEntries]);
   const totals = useMemo(() => sumEntries(dayEntries), [dayEntries]);
+  const usual = usuals[meal];
 
-  async function lookup() {
-    const q = input.trim();
+  function refreshUsual() {
+    api.getUsualMeals().then(setUsuals).catch(() => {});
+  }
+
+  async function lookup(text?: string) {
+    const q = (text ?? input).trim() || usual || "";
     if (!q || loading) return;
     setLoading(true);
     setErr("");
@@ -185,6 +193,7 @@ export default function Page() {
     try {
       const created = await api.createEntries(captured, items);
       setEntries((p) => [...p, ...created]);
+      refreshUsual();
     } catch {
       setErr("could not save — try again");
     }
@@ -194,6 +203,7 @@ export default function Page() {
     setEntries((p) => p.filter((e) => e.id !== id));
     try {
       await api.deleteEntry(id);
+      refreshUsual();
     } catch {
       console.error("delete failed for", id);
     }
@@ -334,9 +344,29 @@ export default function Page() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: COLORS.inset, border: `1px solid ${COLORS.border}`, padding: "9px 11px" }}>
               <span style={{ color: COLORS.accent }}>&gt;</span>
-              <input className="tin" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && lookup()} placeholder="2 eggs scrambled in butter, 1 banana" />
-              <button className="btn" onClick={lookup} disabled={loading || !input.trim()}>{loading ? "READING…" : "LOOK UP"}</button>
+              <input
+                className="tin"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Tab" && !input.trim() && usual) {
+                    e.preventDefault();
+                    setInput(usual);
+                    return;
+                  }
+                  if (e.key === "Enter") lookup();
+                }}
+                placeholder={usual ?? "2 eggs scrambled in butter, 1 banana"}
+              />
+              <button className="btn" onClick={() => lookup()} disabled={loading || (!input.trim() && !usual)}>
+                {loading ? "READING…" : "LOOK UP"}
+              </button>
             </div>
+            {!input.trim() && usual && (
+              <div style={{ color: COLORS.dim, fontSize: 12, marginTop: 8 }}>
+                // usual {MEAL_LABEL[meal].toLowerCase()} · ⇥ accept · ↵ look up
+              </div>
+            )}
             {err && <div style={{ color: COLORS.fat, fontSize: 12, marginTop: 8 }}>! {err}</div>}
             {note && <div style={{ color: COLORS.dim, fontSize: 12, marginTop: 8 }}>// {note}</div>}
 
@@ -479,6 +509,7 @@ export default function Page() {
 
       <div className="statusbar">
         <span><span style={{ color: COLORS.accent }}>↵</span> look up</span>
+        <span><span style={{ color: COLORS.accent }}>⇥</span> usual</span>
         <span><span style={{ color: COLORS.accent }}>▼</span> pick day</span>
         <span><span style={{ color: COLORS.accent }}>×</span> remove</span>
         <span style={{ marginLeft: "auto" }}>saved to your db · yours to export</span>
