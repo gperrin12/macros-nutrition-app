@@ -1,4 +1,4 @@
-import type { Entry, Goals, MacroKey, Meal } from "./types";
+import type { Entry, Goals, MacroKey, Meal, UsualMeals } from "./types";
 
 export const MACRO_KEYS: MacroKey[] = ["calories", "protein", "carbs", "fat", "fiber"];
 
@@ -138,137 +138,15 @@ export function defaultMeal(): Meal {
   return "snack";
 }
 
-const USUAL_LOOKBACK_DAYS = 28;
-const USUAL_CLUSTER_MS = 5_000;
+/** How far back `/api/usual` looks when ranking plates per meal. */
+export const USUAL_LOOKBACK_DAYS = 28;
 
-function normFood(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function normServing(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function comboKey(items: Entry[]): string {
-  return items
-    .map((e) => `${normFood(e.food)}\0${normServing(e.serving)}`)
-    .sort()
-    .join("\n");
-}
-
-/** `serving food` fragments in log order, joined the way the lookup box expects. */
-export function formatMealPrompt(items: Entry[]): string {
-  return [...items]
-    .sort((a, b) => a.ts - b.ts)
-    .map((e) => {
-      const food = e.food.trim();
-      const serving = e.serving.trim();
-      return serving ? `${serving} ${food}` : food;
-    })
-    .filter(Boolean)
-    .join(", ");
-}
-
-/**
- * Items written in one LOOK UP → WRITE land 1ms apart; a later add is a new
- * cluster. Group those so "yogurt + oats + almond butter" stays one meal even
- * if coffee is logged later the same morning.
- */
-function mealClusters(entries: Entry[]): Entry[][] {
-  const sorted = [...entries].sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    return a.ts - b.ts;
-  });
-  const clusters: Entry[][] = [];
-  let cur: Entry[] = [];
-  for (const e of sorted) {
-    if (!e.food.trim()) continue;
-    const prev = cur[cur.length - 1];
-    if (!prev || prev.date !== e.date || e.ts - prev.ts > USUAL_CLUSTER_MS) {
-      if (cur.length) clusters.push(cur);
-      cur = [e];
-    } else {
-      cur.push(e);
-    }
-  }
-  if (cur.length) clusters.push(cur);
-  return clusters;
-}
-
-type ComboScore = { count: number; lastDate: string; sample: Entry[] };
-
-function tallyCombos(groups: Entry[][]): Map<string, ComboScore> {
-  const counts = new Map<string, ComboScore>();
-  for (const items of groups) {
-    const key = comboKey(items);
-    if (!key) continue;
-    const prev = counts.get(key);
-    const last = items[items.length - 1];
-    if (!prev) {
-      counts.set(key, { count: 1, lastDate: last.date, sample: items });
-    } else {
-      prev.count += 1;
-      if (last.date >= prev.lastDate) {
-        prev.lastDate = last.date;
-        prev.sample = items;
-      }
-    }
-  }
-  return counts;
-}
-
-function pickUsual(counts: Map<string, ComboScore>): ComboScore | null {
-  const ranked = [...counts.values()];
-  const multi = ranked.filter((v) => v.sample.length >= 2);
-  const pool = multi.length ? multi : ranked;
-  let best: ComboScore | null = null;
-  for (const v of pool) {
-    if (
-      !best ||
-      v.count > best.count ||
-      (v.count === best.count && v.sample.length > best.sample.length) ||
-      (v.count === best.count && v.sample.length === best.sample.length && v.lastDate > best.lastDate)
-    ) {
-      best = v;
-    }
-  }
-  return best;
-}
-
-function byDate(entries: Entry[]): Entry[][] {
-  const map = new Map<string, Entry[]>();
-  for (const e of entries) {
-    if (!e.food.trim()) continue;
-    const list = map.get(e.date);
-    if (list) list.push(e);
-    else map.set(e.date, [e]);
-  }
-  return [...map.values()];
-}
-
-/**
- * Most-logged combo for a meal slot, as lookup-box text. Looks at the last
- * ~4 weeks. Prefers items written together (one LOOK UP → WRITE); if nothing
- * repeats that way, falls back to the most common full-day plate for that meal.
- */
-export function usualMealText(entries: Entry[], meal: Meal, asOf: string = today()): string | null {
-  const from = shift(asOf, -(USUAL_LOOKBACK_DAYS - 1));
-  const relevant = entries.filter((e) => e.meal === meal && e.date >= from && e.date <= asOf);
-  const clustered = pickUsual(tallyCombos(mealClusters(relevant)));
-  const daily = pickUsual(tallyCombos(byDate(relevant)));
-  // Prefer a repeating write-batch (the "whole meal" they type in); otherwise
-  // the day's plate, so separately-logged yogurt + oats + almond butter still
-  // counts as one breakfast.
-  const best =
-    clustered && clustered.sample.length >= 2 && clustered.count >= 2
-      ? clustered
-      : daily && daily.sample.length >= 2
-        ? daily
-        : clustered ?? daily;
-  if (!best) return null;
-  const text = formatMealPrompt(best.sample);
-  return text || null;
-}
+export const EMPTY_USUAL_MEALS: UsualMeals = {
+  breakfast: null,
+  lunch: null,
+  dinner: null,
+  snack: null,
+};
 
 export const uid = (): string => Math.random().toString(36).slice(2, 10);
 export const num = (v: unknown): number => {

@@ -13,6 +13,7 @@ import {
   buildCSV,
   buildJSON,
   defaultMeal,
+  EMPTY_USUAL_MEALS,
   emptyTotals,
   entriesByMeal,
   num,
@@ -20,13 +21,12 @@ import {
   sumEntries,
   today,
   uid,
-  usualMealText,
   windowDates,
   type HistoryWindow,
 } from "@/lib/core/macros";
 import { COLORS, MACRO_COLOR } from "@/lib/core/theme";
 import { parseWeightCsv } from "@/lib/core/weight";
-import type { Entry, Goals, Meal, WeightLog } from "@/lib/core/types";
+import type { Entry, Goals, Meal, UsualMeals, WeightLog } from "@/lib/core/types";
 import { Bar } from "@/components/Bar";
 import { Box } from "@/components/Box";
 import { DatePicker } from "@/components/DatePicker";
@@ -113,6 +113,7 @@ export default function Page() {
   const { data: session } = useSession();
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [usuals, setUsuals] = useState<UsualMeals>(EMPTY_USUAL_MEALS);
   const [weights, setWeights] = useState<WeightLog[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"today" | "history" | "export">("today");
@@ -130,9 +131,10 @@ export default function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const [g, e, w] = await Promise.all([api.getGoals(), api.getEntries(), api.getWeights()]);
+        const [g, e, u, w] = await Promise.all([api.getGoals(), api.getEntries(), api.getUsualMeals(), api.getWeights()]);
         setGoals(g);
         setEntries(e);
+        setUsuals(u);
         setWeights(w);
       } catch (ex) {
         console.error(ex);
@@ -146,7 +148,11 @@ export default function Page() {
   const dayEntries = useMemo(() => entries.filter((e) => e.date === date), [entries, date]);
   const byMeal = useMemo(() => entriesByMeal(dayEntries), [dayEntries]);
   const totals = useMemo(() => sumEntries(dayEntries), [dayEntries]);
-  const usual = useMemo(() => usualMealText(entries, meal), [entries, meal]);
+  const usual = usuals[meal];
+
+  function refreshUsual() {
+    api.getUsualMeals().then(setUsuals).catch(() => {});
+  }
 
   async function lookup(text?: string) {
     const q = (text ?? input).trim() || usual || "";
@@ -187,6 +193,7 @@ export default function Page() {
     try {
       const created = await api.createEntries(captured, items);
       setEntries((p) => [...p, ...created]);
+      refreshUsual();
     } catch {
       setErr("could not save — try again");
     }
@@ -196,6 +203,7 @@ export default function Page() {
     setEntries((p) => p.filter((e) => e.id !== id));
     try {
       await api.deleteEntry(id);
+      refreshUsual();
     } catch {
       console.error("delete failed for", id);
     }

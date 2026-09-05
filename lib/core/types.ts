@@ -48,6 +48,9 @@ export interface LookupResult {
   note: string;
 }
 
+/** Most-logged plate per meal slot, as lookup-box text. Null if that slot has no history. */
+export type UsualMeals = Record<Meal, string | null>;
+
 // One weigh-in per calendar day (lbs). Re-saving the same date overwrites.
 export interface WeightLog {
   date: string; // YYYY-MM-DD (local)

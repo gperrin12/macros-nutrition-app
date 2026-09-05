@@ -1,4 +1,4 @@
-import type { Entry, Goals, LogItem, LookupResult, WeightLog } from "./types";
+import type { Entry, Goals, LogItem, LookupResult, UsualMeals, WeightLog } from "./types";
 
 // Same-origin on web. For the future Expo app, set EXPO_PUBLIC_API_BASE to the
 // deployed origin and reuse this file unchanged.
@@ -38,6 +38,7 @@ export const api = {
     }).then((r) => j<Goals>(r)),
 
   getEntries: () => fetch(`${BASE}/api/entries`, FETCH_OPTS).then((r) => j<Entry[]>(r)),
+  getUsualMeals: () => fetch(`${BASE}/api/usual`, FETCH_OPTS).then((r) => j<UsualMeals>(r)),
   createEntries: (date: string, items: LogItem[]) =>
     fetch(`${BASE}/api/entries`, {
       ...FETCH_OPTS,
